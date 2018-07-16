@@ -352,10 +352,10 @@ classdef astrometry < handle
       
       % get a list of objects from catalogs in the search radius
       catalog = [];
-      for f={'stars','deep_sky_objects'}
+      for f=fieldnames(self.catalogs)'
         
         index = find(abs(self.catalogs.(f{1}).RA - ra) < radius/2 ...
-                & abs(self.catalogs.(f{1}).DEC - dec) < radius/2);
+                   & abs(self.catalogs.(f{1}).DEC - dec) < radius/2);
         if ~isempty(index)
           for F={'RA','DEC','DIST','MAG','SIZE','TYPE','NAME'}
             this = self.catalogs.(f{1}).(F{1});
@@ -384,9 +384,8 @@ classdef astrometry < handle
     
     function found = findobj(self, name)
       % findobj(ma, name): find a given object in catalogs.
-      catalogs = fieldnames(self.catalogs);
       found = [];
-      for f=catalogs(:)'
+      for f=fieldnames(self.catalogs)'
         catalog = self.catalogs.(f{1});
         if ~isfield(catalog, 'MAG'), continue; end
         % search for name
