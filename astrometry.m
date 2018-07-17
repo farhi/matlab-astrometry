@@ -20,7 +20,6 @@ classdef astrometry < handle
     %      points
     %      rotation
     %      translation
-    %      sharpness
     %      width
     %      thumbnail
     
@@ -28,6 +27,7 @@ classdef astrometry < handle
     UserData    = [];
     sensor_size = [ 25.1 16.7 ];
     focal_length= 1200;
+    fov         = [];
     
     catalogs = [];
   end
@@ -236,9 +236,9 @@ classdef astrometry < handle
       % cpselect: automatically set control points
       %
       % cpselect(self)
-      %   set all control points and compute sharpness
+      %   set all control points
       % cpselect(self, images)
-      %   set control points and compute sharpness on given images
+      %   set control points on given images
       %   'images' can be given as name or index
       
       if nargin < 2, img=1:numel(self.images); end
@@ -288,12 +288,6 @@ classdef astrometry < handle
           
           this_img.points = ...
               find_control_points(im, self.nbControlPoints, self.deadPixelArea);
-          this_img.width  = ...
-              sqrt(sum(this_img.points.sx.^2.*this_img.points.sy.^2)) ...
-              /numel(this_img.points.sx);
-          this_img.sharpness  = ...
-              sqrt(sum(this_img.points.sharpness.^2)) ...
-              /numel(this_img.points.sharpness);
           this_img.intensity  = ...
               sum(this_img.points.m) ...
               /numel(this_img.points.m);
@@ -310,7 +304,7 @@ classdef astrometry < handle
       
     end % cpselect
     
-    function solve(self, img, ra, dec, radius)
+    function [ret_t, ret_R] = solve(self, img, ra, dec, radius)
       % astrometry: determine the location of an image in RA/DEC coordinates
       
       % need focal and sensor dimensions OR field-of-view
@@ -330,7 +324,7 @@ classdef astrometry < handle
       
       if isempty(ra), ra=180; end
       if isempty(dec), dec=0; end
-      if isempty(radius), radius=180; end
+      
       
       [im,img] = imread(self, img);  % make sure we have that image. Can be a filename
 
@@ -345,24 +339,34 @@ classdef astrometry < handle
       % convert control point coordinates to degrees (origin=image corner, relative)
       
       % angular field of view [deg]
-      FOV = 2*atan2(self.sensor_size/2,self.focal_length)*180/pi;
+      if isempty(self.fov)    
+        FOV = 2*atan2(self.sensor_size/2,self.focal_length)*180/pi;
+      else
+        FOV = self.fov;
+      end
       
-      x = img.points.x*FOV(1);  % now in DEG, starting from image corner=0
-      y = img.points.y*FOV(2);
+      if isempty(radius), radius=max(FOV/2); end
+      disp([ mfilename ': using field-of-view (horz x vert): ' num2str(FOV) ' [deg]' ])
+      
+      x = img.points.x/img.image_size(1)*FOV(2);  % now in DEG, starting from image corner=0
+      y = img.points.y/img.image_size(2)*FOV(1);
       
       % get a list of objects from catalogs in the search radius
       catalog = [];
       for f=fieldnames(self.catalogs)'
         
-        index = find(abs(self.catalogs.(f{1}).RA - ra) < radius/2 ...
-                   & abs(self.catalogs.(f{1}).DEC - dec) < radius/2);
+        index = find(abs(self.catalogs.(f{1}).RA  - ra)  < radius ...
+                   & abs(self.catalogs.(f{1}).DEC - dec) < radius);
         if ~isempty(index)
           for F={'RA','DEC','DIST','MAG','SIZE','TYPE','NAME'}
             this = self.catalogs.(f{1}).(F{1});
+            if numel(this) >= index
+              this=this(index);
+            end
             if ~isfield(catalog, F{1})
-              catalog.(F{1}) = this(index);
+              catalog.(F{1}) = this;
             else
-              catalog.(F{1}) = [ catalog.(F{1}) ; this(index) ];
+              catalog.(F{1}) = [ catalog.(F{1}) ; this ];
             end
           end
         end

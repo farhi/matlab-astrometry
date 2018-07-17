@@ -88,14 +88,12 @@ function [im, img, exif] = imread_single(source, images, flag)
     img.source      = source;
     img.image       = []; % we do not store the images. Many will be huge.
     img.exif        = exif;
-    img.width       = 0;
     img.image_size  = 0;
     img.image_sum   = 0;
-    img.sharpness   = 0;
     img.intensity   = 0;
     img.type        = [];
     img.points      = struct('x',[],'y',[],'handle',[],'m',[], ...
-      'sx',[],'sy',[], 'sharpness', []);
+      'sx',[],'sy',[]);
   end
   if ~isempty(im)
     img.image_size  = size(im);
