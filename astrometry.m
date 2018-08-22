@@ -80,11 +80,11 @@ classdef astrometry < handle
       cmd = [ cmd ' --upload='   filename ];
       cmd = [ cmd ' --wcs='      fullfile(d, 'results.wcs') ];
       cmd = [ cmd ' --annotate=' fullfile(d, 'results.json') ];
-      % cmd = [ cmd ' --newfits='  fullfile(d, 'results.fits') ];
-      % cmd = [ cmd ' --kmz='      fullfile(d, 'results.kml') ];
+      cmd = [ cmd ' --newfits='  fullfile(d, 'results.fits') ];
+      cmd = [ cmd ' --kmz='      fullfile(d, 'results.kml') ];
 
       disp(cmd)
-      disp([ mfilename ': please wait (may take e.g. few minutes)...' ])
+      disp([ mfilename ': client.py: please wait (may take e.g. few minutes)...' ])
       [status, result] = system(cmd);
       
       if status ~= 0
@@ -140,9 +140,42 @@ classdef astrometry < handle
       
       d = tempname;
       if ~isdir(d), mkdir(d); end
+      
+      cmd = [ precmd self.executables.solve_field  ];
+      cmd = [ cmd  ' '           filename ];
+      if ~isempty(self.executables.sextractor)
+        % highly improves annotation efficiency
+        cmd = [ cmd ' --use-sextractor' ];
+      end
+      cmd = [ cmd ' --dir '      d ];
+      cmd = [ cmd ' --wcs '      fullfile(d, 'results.wcs') ];
+      cmd = [ cmd ' --new-fits ' fullfile(d, 'results.fits') ];
+      cmd = [ cmd ' --rdls '     fullfile(d, 'results.rdls') ];
+      cmd = [ cmd ' --corr '     fullfile(d, 'results.corr') ' --tag-all' ];
+      if ~isempty(self.executables.wcs2kml)
+        cmd = [ cmd ' --kmz '      fullfile(d, 'results.kml') ' --no-tweak' ];
+      end
 
-      % --dir tempdir
-      % solve-field IC5146-Cocon-2018-08-11.jpg  --ra 21:53:24 --dec 47:16:14 --radius 2  -l 600 -L 0.5 -H 2 --overwrite
+      disp(cmd)
+      disp([ mfilename ': solve-field: please wait (may take e.g. few minutes)...' ])
+      [status, result] = system(cmd);
+      
+      if status ~= 0
+        disp(result)
+        error([ mfilename ': FAILED: plate solve for image ' filename ' using solve-field' ])
+      end
+      disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using solve-field' ])
+      disp([ '  Results are in: ' d ]);
+      
+      if exist(fullfile(d, 'results.wcs'), 'file')
+        ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
+      end
+      if exist(fullfile(d, 'results.rdls'), 'file')
+        ret.rdls = read_fits(fullfile(d, 'results.rdls'));
+      end
+      if exist(fullfile(d, 'results.corr'), 'file')
+        ret.corr = read_fits(fullfile(d, 'results.corr'));
+      end
     
     end % solve
     
