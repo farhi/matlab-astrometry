@@ -18,3 +18,28 @@ for extname={'primary','table','bintable','image','unknown'}
   end
 end
 
+meta = [];
+% search for some 'Keywords'
+for extname=fieldnames(s)'
+  if isfield(s.(extname{1}), 'Keywords')
+    kw = s.(extname{1}).Keywords;
+    for index=1:size(kw,1)
+      name = kw{index,1};
+      val  = kw{index,2};
+      if isempty(val)
+        val = kw{index,3};
+      end
+      if ischar(val)
+        val = strtrim(val); 
+      end
+      if ~isfield(meta, name)
+        meta.(name) = val;
+      else
+        if ~iscell(meta.(name)), meta.(name) = { meta.(name) };
+        else meta.(name) = [ meta.(name) ; val ]; end
+      end
+    end
+  end
+end
+
+s.meta = meta;
