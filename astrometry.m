@@ -100,6 +100,7 @@ classdef astrometry < handle
       if exist(fullfile(d, 'results.wcs'), 'file')
         ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
       end
+      ret.dir = d;
     
     end % client
     
@@ -176,6 +177,7 @@ classdef astrometry < handle
       if exist(fullfile(d, 'results.corr'), 'file')
         ret.corr = read_fits(fullfile(d, 'results.corr'));
       end
+      ret.dir = d;
     
     end % solve
     

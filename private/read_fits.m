@@ -43,3 +43,22 @@ for extname=fieldnames(s)'
 end
 
 s.meta = meta;
+
+% get data from the BinaryTable.
+% The fields are described in the BinaryTable.Keywords
+% and the data  itself  is in the data.bintable as a cell with arrays
+% the TTYPE* fields indicate what this is, and the order in the table
+
+if isfield(meta, 'TFIELDS') && isfield(meta, 'XTENSION') ...
+  && strcmp(meta.XTENSION, 'BINTABLE') && numel(s.data.bintable) == meta.TFIELDS
+  f = fieldnames(meta);
+  for index=1:meta.TFIELDS
+    name = [ 'TTYPE' num2str(index) ];
+    if isfield(meta, name)
+      name = meta.(name);
+      val  = s.data.bintable{index};
+      s.data.(name) = val;
+    end
+  end  
+  
+end
