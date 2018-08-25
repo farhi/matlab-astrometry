@@ -11,6 +11,11 @@ classdef astrometry < handle
      % example: 'kvfubnepntofzpcl' 'ghqpqhztzychczjh'
      % from: https://git.kpi.fei.tuke.sk/TP/ExplorationOfInterstellarObjects/blob/master/src/sk/tuke/fei/kpi/tp/eoio/AstrometryAPI.java
     executables= [];  % executables
+    result     = [];
+    filename   = [];
+    status     = '';  % can be: running, failed, success
+    log        = '';
+    catalogs   = [];
     
   end % properties
   
@@ -20,12 +25,28 @@ classdef astrometry < handle
       % astrometry: loads an image and identifies its objects using astrometry.net
       % 
       self.executables = find_executables;
+      self.catalogs    = getcatalogs;
+      
+      if nargin
+        % first try with the local plate solver
+        [self.result, filename]      = self.solve(filename, varargin{:});
+        % if fails or not installed, use the web service
+        if isempty(self.result)
+          self.client(filename, varargin{:});
+        end
+      end
       
     end % astrometry
     
     function [ret, filename] = client(self, filename, varargin)
       %  input:
       %    filename: an image to annotate
+      %    any name/value pair as:
+      %      ra:      approximate RA coordinate  (e.g. deg or 'hh:mm:ss')
+      %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
+      %      radius:  approximate field size      (in deg)
+      %      scale-lower: lower estimate of the field coverage (in [deg], e.g. 0.1)
+      %      scale-upper: upper estimate of the field coverage (in [deg], e.g. 180)
       
       % varargin: ra, dec, radius, scale-lower, scale-upper
       
@@ -85,6 +106,9 @@ classdef astrometry < handle
       
       % handle additional arguments in name/value pairs
       if nargin > 3 && mod(numel(varargin), 2) == 0
+        if     strcmp(varargin{f}, 'scale-low')  varargin{f}='scale-lower'; 
+        elseif strcmp(varargin{f}, 'scale-high') varargin{f}='scale-upper';
+        end
         for f=1:2:numel(varargin)
           cmd = [ cmd ' --' varargin{f} '=' num2str(varargin{f+1}) ];
         end
@@ -92,34 +116,24 @@ classdef astrometry < handle
 
       disp(cmd)
       t0 = clock;
+      self.status   = 'running';
+      self.filename = filename;
       disp([ mfilename ': client.py: please wait (may take e.g. few minutes)...' ])
-      [status, result] = system(cmd);
+      [status, self.log] = system(cmd);
       
       if status ~= 0
-        disp(result)
-        error([ mfilename ': FAILED: plate solve for image ' filename ' using http://nova.astrometry.net' ])
+        disp([ mfilename ': FAILED: plate solve for image ' filename ' using http://nova.astrometry.net' ]);
+        self.status = 'failed';
+        return
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using http://nova.astrometry.net' ])
       disp([ '  Results are in: ' d ]);
       
-      if exist(fullfile(d, 'results.json'), 'file')
-        ret.json = loadjson(fullfile(d, 'results.json'));
-      end
-      if exist(fullfile(d, 'results.wcs'), 'file')
-        ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
-        % get image center and print it
-        if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
-          ret.ra  = ret.wcs.meta.CRVAL1;
-          [ret.ra_h, ret.ra_min, ret.ra_s] = getra(ret.ra/15);
-          ret.dec  = ret.wcs.meta.CRVAL2;
-          [ret.dec_deg, ret.dec_min, ret.dec_s] = getdec(ret.dec);
-          disp([ '  RA=  ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ])
-          disp([ '  DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ])
-        end
-      end
-      ret.dir     = d;
+      ret = getresult(d);
       ret.duration= etime(clock, t0);
+      self.status = 'success';
       
+      self.result = ret;
     
     end % client
     
@@ -132,8 +146,6 @@ classdef astrometry < handle
       %      radius:  approximate field size      (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
-      %      kmz:     output KML file             (requires wcs2kml)
-      %      depth:   number of field objects to look at (e.g. 1-50)
       %      
       % example: as.solve('M33.jpg')
       %          as.solve('M33.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
@@ -186,44 +198,104 @@ classdef astrometry < handle
       % handle additional arguments in name/value pairs
       if nargin > 3 && mod(numel(varargin), 2) == 0
         for f=1:2:numel(varargin)
+          if     strcmp(varargin{f}, 'scale-lower') varargin{f}='scale-low'; 
+          elseif strcmp(varargin{f}, 'scale-upper') varargin{f}='scale-high';
+          end
           cmd = [ cmd ' --' varargin{f} '=' num2str(varargin{f+1}) ];
         end
       end
 
       disp(cmd)
       t0 = clock;
+      self.status   = 'running';
+      self.filename = filename;
       disp([ mfilename ': solve-field: please wait (may take e.g. few minutes)...' ])
-      [status, result] = system(cmd);
+      [status, self.log] = system(cmd);
       
       if status ~= 0
-        disp(result)
-        error([ mfilename ': FAILED: plate solve for image ' filename ' using solve-field' ])
+        disp([ mfilename ': FAILED: plate solve for image ' filename ' using solve-field' ])
+        self.status = 'failed';
+        return
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using solve-field' ])
       disp([ '  Results are in: ' d ]);
       
-      if exist(fullfile(d, 'results.wcs'), 'file')
-        ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
-        % get image center and print it
-        if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
-          ret.ra  = ret.wcs.meta.CRVAL1;
-          [ret.ra_h, ret.ra_min, ret.ra_s] = getra(ret.ra/15);
-          ret.dec  = ret.wcs.meta.CRVAL2;
-          [ret.dec_deg, ret.dec_min, ret.dec_s] = getdec(ret.dec);
-          disp([ '  RA=  ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ])
-          disp([ '  DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ])
-        end
-      end
-      if exist(fullfile(d, 'results.rdls'), 'file')
-        ret.rdls = read_fits(fullfile(d, 'results.rdls'));
-      end
-      if exist(fullfile(d, 'results.corr'), 'file')
-        ret.corr = read_fits(fullfile(d, 'results.corr'));
-      end
-      ret.dir     = d;
+      ret = getresult(d);
       ret.duration= etime(clock, t0);
+      self.status = 'success';
+      
+      self.result = ret;
     
     end % solve
+    
+    function fig = image(self)
+    
+      fig = [];
+      try
+        im  = imread(self.filename);
+      catch
+        return
+      end 
+      fig = figure('Name', [ mfilename ': ' self.filename ]);
+      image(im);
+      sz = size(im);
+      clear im;
+      
+      % overlay results
+      if ~isempty(self.result) && strcmp(self.status, 'success')
+        ret = self.result;
+        hold on
+        % central coordinates
+        h = plot(sz(2)/2, sz(1)/2, 'g+'); set(h, 'MarkerSize', 12);
+        hcmenu = uicontextmenu;
+        uimenu(hcmenu, 'Label', '<html><b>Field centre</b></html>');
+        uimenu(hcmenu, 'Label', [ 'RA= ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ]);
+        uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ]);
+        set(h, 'UIContextMenu', hcmenu);
+        % reference stars
+        if isfield(ret, 'corr') && isfield(ret.corr.data, 'field_x')
+          for index=1:numel(ret.corr.data.field_x)
+            x   = ret.corr.data.field_x(index);
+            y   = ret.corr.data.field_y(index);
+            ra  = ret.corr.data.field_ra(index);
+            dec = ret.corr.data.field_dec(index);
+            [ra_h, ra_min, ra_s]      = getra(ra/15);
+            [dec_deg, dec_min, dec_s] = getdec(dec);
+            h = plot(x,y,'go'); set(h, 'MarkerSize', 12);
+            hcmenu = uicontextmenu;
+            % get the star names
+            [minradec, st] = min( abs(ra - self.catalogs.stars.RA) + abs(dec - self.catalogs.stars.DEC) );
+            uimenu(hcmenu, 'Label', [ 'RA= ' num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s) ]);
+            uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
+            if minradec < 1e-1
+              name = self.catalogs.stars.NAME{st};
+              typ  = self.catalogs.stars.TYPE{st};
+              dist = self.catalogs.stars.DIST(st);
+              mag  = self.catalogs.stars.MAG(st);
+              uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
+              
+              uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
+              uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
+              uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.26/1000, 2) ' [kly]' ]);
+            end
+            set(h, 'UIContextMenu', hcmenu);
+          end
+          % find all DSO within the reference star area
+          min_ra = min(ret.corr.data.field_ra);
+          max_ra = max(ret.corr.data.field_ra);
+          min_dec= min(ret.corr.data.field_dec);
+          max_dec= max(ret.corr.data.field_dec);
+          dso=find(...
+              min_ra <= self.catalogs.deep_sky_objects.RA ...
+            & self.catalogs.deep_sky_objects.RA <= max_ra ...
+            & min_dec<= self.catalogs.deep_sky_objects.DEC ...
+            & self.catalogs.deep_sky_objects.DEC <= max_dec);
+          for index=1:numel(dso)
+            disp(self.catalogs.deep_sky_objects.NAME{dso(index)});
+          end
+        end
+      end
+    end % image
     
     
   end % methods
@@ -303,16 +375,17 @@ function [ra_h, ra_min, ra_s] = getra(ra)
     elseif numel(ra) == 3
       ra_h = ra(1);     ra_min = abs(ra(2))+abs(ra(3)/60);
     end
-    if nargout == 3
-      ra_s   = abs(ra_min - fix(ra_min))*60;
-      ra_min = fix(ra_min);
-    end
   else
     disp([ mfilename ': invalid RA.' ])
     disp(ra)
   end
   if nargout == 1
-    ra_h = ra_h+ra_min/60;
+    ra_h = ra_h+ra_min/60 + ra_s/3600;
+  elseif nargout == 2
+    ra_min = ra_min + ra_s/60;
+  elseif nargout == 3
+    ra_s   = abs(ra_min - fix(ra_min))*60;
+    ra_min = fix(ra_min);
   end
 end % getra
 
@@ -321,12 +394,12 @@ function [dec_deg, dec_min, dec_s] = getdec(dec)
   if ischar(dec)
     dec = repradec(dec);
   end
+  dec_s   = 0;
   if isstruct(dec) && isfield(dec, 'DEC')
     dec = dec.DEC;
   elseif isstruct(dec) && isfield(dec, 'deg') && isfield(dec, 'min')
     dec_deg = dec.deg;
     dec_min = dec.min;
-    return
   end
   if isnumeric(dec)
     if isscalar(dec)
@@ -336,16 +409,17 @@ function [dec_deg, dec_min, dec_s] = getdec(dec)
     elseif numel(dec) == 3
       dec_deg = dec(1);   dec_min = abs(dec(2))+abs(dec(3)/60);
     end
-    if nargout == 3
-      dec_s   = abs(dec_min - fix(dec_min))*60;
-      dec_min = fix(dec_min);
-    end
   else
     disp([ mfilename ': invalid DEC' ])
     disp(dec)
   end
   if nargout == 1
-    dec_deg = dec_deg + dec_min/60;
+    dec_deg = dec_deg + dec_min/60 + dec_s/3600;
+  elseif nargout == 2
+    dec_min = dec_min + dec_s/60;
+  elseif nargout == 3
+    dec_s   = abs(dec_min - fix(dec_min))*60;
+    dec_min = fix(dec_min);
   end
 end % getdec
 
@@ -356,4 +430,62 @@ function str = repradec(str)
     str = strrep(str, rep{1}, ' ');
   end
   str = str2num(str);
-end
+end % repradec
+
+function ret = getresult(d)
+
+  if exist(fullfile(d, 'results.wcs'), 'file')
+    ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
+    % get image center and print it
+    if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
+      ret.ra  = ret.wcs.meta.CRVAL1;
+      [ret.ra_h, ret.ra_min, ret.ra_s] = getra(ret.ra/15);
+      ret.dec  = ret.wcs.meta.CRVAL2;
+      [ret.dec_deg, ret.dec_min, ret.dec_s] = getdec(ret.dec);
+      disp([ '  RA=  ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ])
+      disp([ '  DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ])
+      % compute pixel scale
+      ret.pixel_scale = sqrt(abs(ret.wcs.meta.CD1_1 * ret.wcs.meta.CD2_2 - ret.wcs.meta.CD1_2 * ret.wcs.meta.CD2_1))*3600; % in arcsec/pixel
+    end
+  end
+  if exist(fullfile(d, 'results.rdls'), 'file')
+    ret.rdls = read_fits(fullfile(d, 'results.rdls'));
+  end
+  if exist(fullfile(d, 'results.corr'), 'file')
+    ret.corr = read_fits(fullfile(d, 'results.corr'));
+  end
+  if exist(fullfile(d, 'results.json'), 'file')
+    ret.json = loadjson(fullfile(d, 'results.json'));
+  end
+  ret.dir     = d;
+  
+end % getresult
+
+function catalogs = getcatalogs
+
+  persistent loaded_catalogs
+  
+  if ~isempty(loaded_catalogs)
+    catalogs = loaded_catalogs; 
+    return
+  end
+  
+  % load catalogs: objects, stars
+  disp([ mfilename ': Welcome ! Loading Catalogs:' ]);
+  catalogs = load(mfilename);
+  
+  % display available catalogs
+  for f=fieldnames(catalogs)'
+    name = f{1};
+    if ~isempty(catalogs.(name))
+      num  = numel(catalogs.(name).RA);
+      if isfield(catalogs.(name), 'Description')
+        desc = catalogs.(name).Description;
+      else desc = ''; end
+      disp([ mfilename ': ' name ' with ' num2str(num) ' entries.' ]);
+      disp([ '  ' desc ])
+    end
+  end
+
+  loaded_catalogs = catalogs;
+end % getcatalogs
