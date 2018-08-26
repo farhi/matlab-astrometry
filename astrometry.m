@@ -13,7 +13,7 @@ classdef astrometry < handle
     executables= [];  % executables
     result     = [];
     filename   = [];
-    status     = '';  % can be: running, failed, success
+    status     = 'init';  % can be: running, failed, success
     log        = '';
     catalogs   = [];
     
@@ -128,7 +128,7 @@ classdef astrometry < handle
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using http://nova.astrometry.net' ])
       
-      ret = getresult(d);
+      ret = getresult(d, self);
       ret.duration= etime(clock, t0);
       self.status = 'success';
       
@@ -218,7 +218,7 @@ classdef astrometry < handle
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using solve-field' ])
       
-      ret = getresult(d);
+      ret = getresult(d, self);
       ret.duration= etime(clock, t0);
       self.status = 'success';
       
@@ -236,7 +236,7 @@ classdef astrometry < handle
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
       image(im);
-      sz = size(im);
+      im_sz = size(im);
       clear im;
       
       % overlay results
@@ -245,11 +245,15 @@ classdef astrometry < handle
         hold on
         
         % central coordinates
-        h = plot(sz(2)/2, sz(1)/2, 'y+'); set(h, 'MarkerSize', 16);
+        if isfield(ret.wcs.meta, 'CRPIX1')
+          sz = [ ret.wcs.meta.CRPIX2 ret.wcs.meta.CRPIX1 ]; % [ height width ]
+        else sz = im_sz/2; % [ height width layers ]
+        end
+        h = plot(sz(2), sz(1), 'y+'); set(h, 'MarkerSize', 16);
         hcmenu = uicontextmenu;
-        uimenu(hcmenu, 'Label', '<html><b>Field centre</b></html>');
-        uimenu(hcmenu, 'Label', [ 'RA= ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ]);
-        uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ]);
+        uimenu(hcmenu, 'Label', '<html><b>Field reference</b></html>');
+        uimenu(hcmenu, 'Label', [ 'RA=  ' ret.RA_hms ]);
+        uimenu(hcmenu, 'Label', [ 'DEC= ' ret.Dec_dms ]);
         set(h, 'UIContextMenu', hcmenu);
         % reference stars
         if isfield(ret, 'corr') && isfield(ret.corr.data, 'field_x')
@@ -299,8 +303,8 @@ classdef astrometry < handle
             ra = self.catalogs.deep_sky_objects.RA(st);
             dec= self.catalogs.deep_sky_objects.DEC(st);
             
-            xy = self.result.ad2xy*[ ra dec ]'; x = xy(1); y = xy(2);
-            %[x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
+            %xy = self.result.ad2xy*[ ra dec ]'; x = xy(1); y = xy(2);
+            [x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
             
             [ra_h, ra_min, ra_s]      = getra(ra/15);
             [dec_deg, dec_min, dec_s] = getdec(dec);
@@ -309,7 +313,7 @@ classdef astrometry < handle
             mag  = self.catalogs.deep_sky_objects.MAG(st);
             sz   = self.catalogs.deep_sky_objects.SIZE(st); % arcmin
             
-            if isfinite(sz) && sz > 1
+            if isfinite(sz) && sz > 5
               h = plot(x,y,'co'); 
               set(h, 'MarkerSize', ceil(sz));
             else
@@ -469,7 +473,7 @@ end % repradec
 
 % ------------------------------------------------------------------------------
 
-function ret = getresult(d)
+function ret = getresult(d, self)
   % getresult: extract WCS and star matching information from the output files.
   %
   % input:
@@ -480,21 +484,62 @@ function ret = getresult(d)
   else
     disp([ '  Results are in: <a href="' d '">' d '</a>' ]);
   end
+  
+  % first get the log from the command
+  if ~isempty(self.log)
+    s = str2struct(self.log);
+    if isfield(s, 'Field_center') && isfield(s.Field_center,'RA_Dec_')
+      c = s.Field_center.RA_Dec_;
+      c(~isstrprop(c,'digit')) = ' ';
+      ret.RA_Dec_center = str2num(c);
+      disp([ 'Field center: RA,Dec=' c ' [deg]' ]);
+    end
+    if isfield(s, 'Field_size')
+      ret.RA_Dec_size   = s.Field_size;
+      disp([ 'Field size:          ' ret.RA_Dec_size ]);
+    end
+  end
 
   if exist(fullfile(d, 'results.wcs'), 'file')
     ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
     % get image center and print it
     if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
-      ret.ra  = ret.wcs.meta.CRVAL1;
-      [ret.ra_h, ret.ra_min, ret.ra_s] = getra(ret.ra/15);
-      ret.dec  = ret.wcs.meta.CRVAL2;
-      [ret.dec_deg, ret.dec_min, ret.dec_s] = getdec(ret.dec);
-      disp(  'Field center:')
-      disp([ '  RA=  ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ])
-      disp([ '  DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ])
+      ret.RA      = ret.wcs.meta.CRVAL1;
+      ret.Dec     = ret.wcs.meta.CRVAL2;
+      [ra_h, ra_min, ra_s]      = getra(ret.RA/15);
+      [dec_deg, dec_min, dec_s] = getdec(ret.Dec);
+      ret.RA_hms  = [ num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s)  ];
+      ret.Dec_dms = [ num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ];
+      
+      disp([ 'Field reference: RA =' ret.RA_hms  ' [h:min:s]    ; ' ...
+        num2str(ret.RA)  ' [deg]']);
+      disp([ '                 DEC=' ret.Dec_dms ' [deg:min:s]  ; ' ...
+        num2str(ret.Dec) ' [deg]' ]);
       % compute pixel scale
-      ret.pixel_scale = sqrt(abs(ret.wcs.meta.CD1_1 * ret.wcs.meta.CD2_2 - ret.wcs.meta.CD1_2 * ret.wcs.meta.CD2_1))*3600; % in arcsec/pixel
-      disp([ 'Pixel scale: ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
+      ret.pixel_scale = sqrt(abs( ...
+        ret.wcs.meta.CD1_1 * ret.wcs.meta.CD2_2 ...
+      - ret.wcs.meta.CD1_2 * ret.wcs.meta.CD2_1))*3600; % in arcsec/pixel
+      disp([ 'Pixel scale:         ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
+      % compute rotation angle
+      ret.rotation = atan2(ret.wcs.meta.CD2_1, ret.wcs.meta.CD1_1)*180/pi;
+      disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
+      
+      % check for RA,Dec of center [ width height ]
+      [RA,Dec] = compute_xy2ra(ret.wcs.meta.IMAGEW/2,ret.wcs.meta.IMAGEH/2, ret.wcs.meta);
+      disp('Field center Ra, Dec from compute');
+      disp([ RA Dec ])
+      
+      % check for pixel of reference
+      [X,Y] = compute_ra2xy(ret.RA, ret.Dec, ret.wcs.meta); % OK -> width height
+      disp('Field ref XY from compute');
+      disp([ X Y ])
+      disp([ ret.wcs.meta.CRPIX1 ret.wcs.meta.CRPIX2 ]) % width height
+      
+      % check for ref to RA
+      [RA,Dec] = compute_xy2ra(ret.wcs.meta.CRPIX1, ret.wcs.meta.CRPIX2, ret.wcs.meta);
+      disp('Field ref RADec from compute');
+      disp([ RA Dec ])
+      disp([ ret.wcs.meta.CRVAL1 ret.wcs.meta.CRVAL2 ])
     end
   end
   if exist(fullfile(d, 'results.rdls'), 'file')
@@ -553,6 +598,12 @@ function catalogs = getcatalogs
   loaded_catalogs = catalogs;
 end % getcatalogs
 
+function c = fun(XY, RA, Dec, wcs)
+  X=XY(1); Y=XY(2);
+  [RA1,Dec1] = compute_xy2ra(X,Y, wcs);
+  c = (RA-RA1)^2 + (Dec-Dec1)^2;  % minimize that
+end
+
 function [X,Y] = compute_ra2xy(RA, Dec, wcs)
 % compute_ra2xy(ra, dec, wcs)
 % 
@@ -560,57 +611,43 @@ function [X,Y] = compute_ra2xy(RA, Dec, wcs)
 %   ra,dec: coordinates to convert (in deg)
 %   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
 %             CD1_1, CD1_2, CD2_1, CD2_2
+% output:
+%   x,y:    pixel coordinates [width height]
 
 % use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
 
-  CRVAL1 = wcs.CRVAL1;
-  CRVAL2 = wcs.CRVAL2;
+  % we start from the image center and iterate until we match
   
-  CRPIX1 = wcs.CRPIX1;
-  CRPIX2 = wcs.CRPIX2;
+  % critera: 
   
-  CD1_1  = wcs.CD1_1;
-  CD1_2  = wcs.CD1_2;
-  CD2_1  = wcs.CD2_1;
-  CD2_2  = wcs.CD2_2;
+  % iterate: [RA1,Dec1] = compute_xy2ra(X,Y, wcs) until RA,Dec are OK
   
-  % first convert (RA,DEC) to (eta,xi). Eq (A32-33)
-  eta = (1 - tand(CRVAL2)*cosd(RA - CRVAL1)/ tand(Dec) ) ...
-      / (    tand(CRVAL2)+cosd(RA - CRVAL1)/ tand(Dec) ) ;
-  xi  =  tand(RA - CRVAL1)*cosd(CRVAL2)*(1 - eta*tand(CRVAL2));
+  X0 = wcs.IMAGEH/2; Y0 = wcs.IMAGEW/2;
   
-  % then compute (X,Y)
-  % use the 'no distorsion' case
-  x = xi; y = eta;
+  % fun is above
+  XY = fminsearch(@(XY)fun(XY, RA, Dec, wcs), [X0 Y0]);
   
-  CD = [ CD1_1 CD1_2 ; CD2_1 CD2_2 ];
-  DC = inv(CD);
-  
-  DC1_1 = DC(1,1);
-  DC1_2 = DC(1,2);
-  DC2_1 = DC(2,1);
-  DC2_2 = DC(2,2);
-  
-  X = DC1_1*x + DC1_2*y + CRPIX1;
-  Y = DC2_1*x + DC2_2*y + CRPIX2;
+  X = XY(1); Y=XY(2);
   
 end % compute_ra2xy
 
-function [RA,Dec] = compute_xy2ra(x,y, wcs)
+function [RA,Dec] = compute_xy2ra(X,Y, wcs)
 % compute_xy2ra(x, y, wcs)
 %
 % input:
-%   x,y:    pixel coordinates to convert
+%   x,y:    pixel coordinates to convert [width height]
 %   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
 %             CD1_1, CD1_2, CD2_1, CD2_2
+% output:
+%   ra,dec: sky coordinates (in deg)
 
 % use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
 
   CRVAL1 = wcs.CRVAL1;
   CRVAL2 = wcs.CRVAL2;
   
-  CRPIX1 = wcs.CRPIX1;
-  CRPIX2 = wcs.CRPIX2;
+  CRPIX1 = wcs.CRPIX1;  % width
+  CRPIX2 = wcs.CRPIX2;  % height
   
   CD1_1  = wcs.CD1_1;
   CD1_2  = wcs.CD1_2;
