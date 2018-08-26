@@ -127,7 +127,6 @@ classdef astrometry < handle
         return
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using http://nova.astrometry.net' ])
-      disp([ '  Results are in: ' d ]);
       
       ret = getresult(d);
       ret.duration= etime(clock, t0);
@@ -218,7 +217,6 @@ classdef astrometry < handle
         return
       end
       disp([ mfilename ': SUCCESS: plate solve for image ' filename ' using solve-field' ])
-      disp([ '  Results are in: ' d ]);
       
       ret = getresult(d);
       ret.duration= etime(clock, t0);
@@ -245,8 +243,9 @@ classdef astrometry < handle
       if ~isempty(self.result) && strcmp(self.status, 'success')
         ret = self.result;
         hold on
+        
         % central coordinates
-        h = plot(sz(2)/2, sz(1)/2, 'g+'); set(h, 'MarkerSize', 12);
+        h = plot(sz(2)/2, sz(1)/2, 'y+'); set(h, 'MarkerSize', 16);
         hcmenu = uicontextmenu;
         uimenu(hcmenu, 'Label', '<html><b>Field centre</b></html>');
         uimenu(hcmenu, 'Label', [ 'RA= ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ]);
@@ -261,25 +260,29 @@ classdef astrometry < handle
             dec = ret.corr.data.field_dec(index);
             [ra_h, ra_min, ra_s]      = getra(ra/15);
             [dec_deg, dec_min, dec_s] = getdec(dec);
-            h = plot(x,y,'go'); set(h, 'MarkerSize', 12);
-            hcmenu = uicontextmenu;
-            % get the star names
+            % identify the star names
             [minradec, st] = min( abs(ra - self.catalogs.stars.RA) + abs(dec - self.catalogs.stars.DEC) );
-            uimenu(hcmenu, 'Label', [ 'RA= ' num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s) ]);
-            uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
+            
             if minradec < 1e-1
               name = self.catalogs.stars.NAME{st};
               typ  = self.catalogs.stars.TYPE{st};
               dist = self.catalogs.stars.DIST(st);
               mag  = self.catalogs.stars.MAG(st);
+              h = plot(x,y,'go'); set(h, 'MarkerSize', 12);
+              hcmenu = uicontextmenu;
+              
+              uimenu(hcmenu, 'Label', [ 'RA=  ' num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s) ]);
+              uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
               uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
               
               uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
               uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
-              uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.26/1000, 2) ' [kly]' ]);
+              uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.262/1000, 2) ' [kly]' ]);
+              set(h, 'UIContextMenu', hcmenu);
             end
-            set(h, 'UIContextMenu', hcmenu);
+            
           end
+          
           % find all DSO within the reference star area
           min_ra = min(ret.corr.data.field_ra);
           max_ra = max(ret.corr.data.field_ra);
@@ -287,11 +290,42 @@ classdef astrometry < handle
           max_dec= max(ret.corr.data.field_dec);
           dso=find(...
               min_ra <= self.catalogs.deep_sky_objects.RA ...
-            & self.catalogs.deep_sky_objects.RA <= max_ra ...
+            &           self.catalogs.deep_sky_objects.RA  <= max_ra ...
             & min_dec<= self.catalogs.deep_sky_objects.DEC ...
-            & self.catalogs.deep_sky_objects.DEC <= max_dec);
+            &           self.catalogs.deep_sky_objects.DEC <= max_dec);
           for index=1:numel(dso)
-            disp(self.catalogs.deep_sky_objects.NAME{dso(index)});
+            % [ X Y ] = ad2xy*[ RA DEC ]
+            st = dso(index);
+            ra = self.catalogs.deep_sky_objects.RA(st);
+            dec= self.catalogs.deep_sky_objects.DEC(st);
+            
+            xy = self.result.ad2xy*[ ra dec ]'; x = xy(1); y = xy(2);
+            %[x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
+            
+            [ra_h, ra_min, ra_s]      = getra(ra/15);
+            [dec_deg, dec_min, dec_s] = getdec(dec);
+            name = self.catalogs.deep_sky_objects.NAME{st};
+            typ  = self.catalogs.deep_sky_objects.TYPE{st};
+            mag  = self.catalogs.deep_sky_objects.MAG(st);
+            sz   = self.catalogs.deep_sky_objects.SIZE(st); % arcmin
+            
+            if isfinite(sz) && sz > 1
+              h = plot(x,y,'co'); 
+              set(h, 'MarkerSize', ceil(sz));
+            else
+              h = plot(x,y,'bs'); 
+            end
+            hcmenu = uicontextmenu;
+            
+            uimenu(hcmenu, 'Label', [ 'RA=  ' num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s) ]);
+            uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
+            uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
+            uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
+            if isfinite(mag)
+              uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
+            end
+            set(h, 'UIContextMenu', hcmenu);
+            
           end
         end
       end
@@ -306,6 +340,7 @@ end % astrometry
 function executables = find_executables
   % find_executables: locate executables, return a structure
   
+  % stored here so that they are not searched for further calls
   persistent found_executables
   
   if ~isempty(found_executables)
@@ -355,7 +390,7 @@ function executables = find_executables
 end % find_executables
 
 function [ra_h, ra_min, ra_s] = getra(ra)
-  % getra: convert any input RA into h and min
+  % getra: convert any input RA (in hours) into h and min
   ra_h = []; ra_min = [];
   if ischar(ra)
     ra = repradec(ra);
@@ -432,7 +467,19 @@ function str = repradec(str)
   str = str2num(str);
 end % repradec
 
+% ------------------------------------------------------------------------------
+
 function ret = getresult(d)
+  % getresult: extract WCS and star matching information from the output files.
+  %
+  % input:
+  %   d: directory where astrometry.net results are stored.
+  
+  if isdeployed || ~usejava('jvm') || ~usejava('desktop')
+    disp([ '  Results are in: ' d ]);
+  else
+    disp([ '  Results are in: <a href="' d '">' d '</a>' ]);
+  end
 
   if exist(fullfile(d, 'results.wcs'), 'file')
     ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
@@ -442,10 +489,12 @@ function ret = getresult(d)
       [ret.ra_h, ret.ra_min, ret.ra_s] = getra(ret.ra/15);
       ret.dec  = ret.wcs.meta.CRVAL2;
       [ret.dec_deg, ret.dec_min, ret.dec_s] = getdec(ret.dec);
+      disp(  'Field center:')
       disp([ '  RA=  ' num2str(ret.ra_h)    ':' num2str(ret.ra_min)  ':' num2str(ret.ra_s) ])
       disp([ '  DEC= ' num2str(ret.dec_deg) ':' num2str(ret.dec_min) ':' num2str(ret.dec_s) ])
       % compute pixel scale
       ret.pixel_scale = sqrt(abs(ret.wcs.meta.CD1_1 * ret.wcs.meta.CD2_2 - ret.wcs.meta.CD1_2 * ret.wcs.meta.CD2_1))*3600; % in arcsec/pixel
+      disp([ 'Pixel scale: ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
     end
   end
   if exist(fullfile(d, 'results.rdls'), 'file')
@@ -453,6 +502,16 @@ function ret = getresult(d)
   end
   if exist(fullfile(d, 'results.corr'), 'file')
     ret.corr = read_fits(fullfile(d, 'results.corr'));
+    % compute the transformation matrix
+    if isfield(ret.corr.data, 'field_x')
+      x   = ret.corr.data.field_x;
+      y   = ret.corr.data.field_y;
+      ra  = ret.corr.data.field_ra;
+      dec = ret.corr.data.field_dec;
+      AD = [ ra dec ]'; % entries (stars) are columns. 2 rows [ A ; D ]
+      XY = [ x  y ]';   % entries (stars) are columns. 2 rows [ X ; Y ]
+      ret.ad2xy = XY*pinv(AD);  % [ X ; Y ] = ad2xy*[ RA ; DEC ]
+    end
   end
   if exist(fullfile(d, 'results.json'), 'file')
     ret.json = loadjson(fullfile(d, 'results.json'));
@@ -461,9 +520,13 @@ function ret = getresult(d)
   
 end % getresult
 
-function catalogs = getcatalogs
+% ------------------------------------------------------------------------------
 
-  persistent loaded_catalogs
+function catalogs = getcatalogs
+  % getcatalogs: load catalogs for stars and DSO.
+
+  % stored here so that they are not loaded for further calls
+  persistent loaded_catalogs  
   
   if ~isempty(loaded_catalogs)
     catalogs = loaded_catalogs; 
@@ -489,3 +552,80 @@ function catalogs = getcatalogs
 
   loaded_catalogs = catalogs;
 end % getcatalogs
+
+function [X,Y] = compute_ra2xy(RA, Dec, wcs)
+% compute_ra2xy(ra, dec, wcs)
+% 
+% input:
+%   ra,dec: coordinates to convert (in deg)
+%   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
+%             CD1_1, CD1_2, CD2_1, CD2_2
+
+% use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
+
+  CRVAL1 = wcs.CRVAL1;
+  CRVAL2 = wcs.CRVAL2;
+  
+  CRPIX1 = wcs.CRPIX1;
+  CRPIX2 = wcs.CRPIX2;
+  
+  CD1_1  = wcs.CD1_1;
+  CD1_2  = wcs.CD1_2;
+  CD2_1  = wcs.CD2_1;
+  CD2_2  = wcs.CD2_2;
+  
+  % first convert (RA,DEC) to (eta,xi). Eq (A32-33)
+  eta = (1 - tand(CRVAL2)*cosd(RA - CRVAL1)/ tand(Dec) ) ...
+      / (    tand(CRVAL2)+cosd(RA - CRVAL1)/ tand(Dec) ) ;
+  xi  =  tand(RA - CRVAL1)*cosd(CRVAL2)*(1 - eta*tand(CRVAL2));
+  
+  % then compute (X,Y)
+  % use the 'no distorsion' case
+  x = xi; y = eta;
+  
+  CD = [ CD1_1 CD1_2 ; CD2_1 CD2_2 ];
+  DC = inv(CD);
+  
+  DC1_1 = DC(1,1);
+  DC1_2 = DC(1,2);
+  DC2_1 = DC(2,1);
+  DC2_2 = DC(2,2);
+  
+  X = DC1_1*x + DC1_2*y + CRPIX1;
+  Y = DC2_1*x + DC2_2*y + CRPIX2;
+  
+end % compute_ra2xy
+
+function [RA,Dec] = compute_xy2ra(x,y, wcs)
+% compute_xy2ra(x, y, wcs)
+%
+% input:
+%   x,y:    pixel coordinates to convert
+%   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
+%             CD1_1, CD1_2, CD2_1, CD2_2
+
+% use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
+
+  CRVAL1 = wcs.CRVAL1;
+  CRVAL2 = wcs.CRVAL2;
+  
+  CRPIX1 = wcs.CRPIX1;
+  CRPIX2 = wcs.CRPIX2;
+  
+  CD1_1  = wcs.CD1_1;
+  CD1_2  = wcs.CD1_2;
+  CD2_1  = wcs.CD2_1;
+  CD2_2  = wcs.CD2_2;
+  
+  x = CD1_1*(X - CRPIX1) + CD1_2*(Y - CRPIX2);
+  y = CD1_1*(X - CRPIX1) + CD2_2*(Y - CRPIX2);
+  
+  % use the 'no distorsion' case
+  xi = x; eta = y;
+  
+  % Eq (A29-31)
+  alpha = atand( xi/cosd(CRVAL2)/(1-eta*tand(CRVAL2)) );
+  RA    = alpha+CRVAL1;
+  Dec   = atand( (eta+tand(CRVAL2))*cosd(alpha) / ( 1 - eta*tand(CRVAL2) )  );
+  
+end % compute_xy2ra
