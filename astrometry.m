@@ -3,6 +3,7 @@ classdef astrometry < handle
   %
   %  Purpose
   %
+  % Credit: sky2xy and xy2sky from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
   % (c) E. Farhi, 2018. GPL2.
 
   properties
@@ -34,6 +35,7 @@ classdef astrometry < handle
         if isempty(self.result)
           self.client(filename, varargin{:});
         end
+        image(self);
       end
       
     end % astrometry
@@ -235,7 +237,7 @@ classdef astrometry < handle
         return
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
-      image(im);
+      image(im); title(self.filename);
       im_sz = size(im);
       clear im;
       
@@ -245,16 +247,19 @@ classdef astrometry < handle
         hold on
         
         % central coordinates
-        if isfield(ret.wcs.meta, 'CRPIX1')
-          sz = [ ret.wcs.meta.CRPIX2 ret.wcs.meta.CRPIX1 ]; % [ height width ]
-        else sz = im_sz/2; % [ height width layers ]
-        end
-        h = plot(sz(2), sz(1), 'y+'); set(h, 'MarkerSize', 16);
+        sz = im_sz/2; % [ height width layers ]
+        h = plot(sz(2), sz(1), 'r+'); set(h, 'MarkerSize', 16);
+        [ra,dec] = xy2sky(self, sz(2), sz(1));
+        [ra_h, ra_min, ra_s]      = getra(ra/15);
+        [dec_deg, dec_min, dec_s] = getdec(dec);
+        ra_hms = [ num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s)  ];
+        dec_dms= [ num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ];
         hcmenu = uicontextmenu;
-        uimenu(hcmenu, 'Label', '<html><b>Field reference</b></html>');
+        uimenu(hcmenu, 'Label', '<html><b>Field center</b></html>');
         uimenu(hcmenu, 'Label', [ 'RA=  ' ret.RA_hms ]);
         uimenu(hcmenu, 'Label', [ 'DEC= ' ret.Dec_dms ]);
         set(h, 'UIContextMenu', hcmenu);
+        
         % reference stars
         if isfield(ret, 'corr') && isfield(ret.corr.data, 'field_x')
           for index=1:numel(ret.corr.data.field_x)
@@ -262,8 +267,7 @@ classdef astrometry < handle
             y   = ret.corr.data.field_y(index);
             ra  = ret.corr.data.field_ra(index);
             dec = ret.corr.data.field_dec(index);
-            [ra_h, ra_min, ra_s]      = getra(ra/15);
-            [dec_deg, dec_min, dec_s] = getdec(dec);
+            
             % identify the star names
             [minradec, st] = min( abs(ra - self.catalogs.stars.RA) + abs(dec - self.catalogs.stars.DEC) );
             
@@ -272,17 +276,23 @@ classdef astrometry < handle
               typ  = self.catalogs.stars.TYPE{st};
               dist = self.catalogs.stars.DIST(st);
               mag  = self.catalogs.stars.MAG(st);
+              [ra_h, ra_min, ra_s]      = getra(ra/15);
+              [dec_deg, dec_min, dec_s] = getdec(dec);
+              ra_hms = [ num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s)  ];
+              dec_dms= [ num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ];
               h = plot(x,y,'go'); set(h, 'MarkerSize', 12);
               hcmenu = uicontextmenu;
               
-              uimenu(hcmenu, 'Label', [ 'RA=  ' num2str(ra_h)    ':' num2str(ra_min)  ':' num2str(ra_s) ]);
-              uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
+              uimenu(hcmenu, 'Label', [ 'RA=  ' ra_hms  ]);
+              uimenu(hcmenu, 'Label', [ 'DEC= ' dec_dms ]);
               uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
               
               uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
               uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
               uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.262/1000, 2) ' [kly]' ]);
               set(h, 'UIContextMenu', hcmenu);
+              
+              t=text(x+12,y-12, name); set(t,'Color', 'g');
             end
             
           end
@@ -298,13 +308,11 @@ classdef astrometry < handle
             & min_dec<= self.catalogs.deep_sky_objects.DEC ...
             &           self.catalogs.deep_sky_objects.DEC <= max_dec);
           for index=1:numel(dso)
-            % [ X Y ] = ad2xy*[ RA DEC ]
             st = dso(index);
             ra = self.catalogs.deep_sky_objects.RA(st);
             dec= self.catalogs.deep_sky_objects.DEC(st);
             
-            %xy = self.result.ad2xy*[ ra dec ]'; x = xy(1); y = xy(2);
-            [x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
+            [x,y] = self.sky2xy(ra, dec);
             
             [ra_h, ra_min, ra_s]      = getra(ra/15);
             [dec_deg, dec_min, dec_s] = getdec(dec);
@@ -318,7 +326,7 @@ classdef astrometry < handle
               h = plot(x,y,'co'); 
               set(h, 'MarkerSize', ceil(sz));
             else
-              h = plot(x,y,'bs'); 
+              h = plot(x,y,'cs'); sz=12;
             end
             hcmenu = uicontextmenu;
             
@@ -329,11 +337,11 @@ classdef astrometry < handle
             if isfinite(mag) && mag > 0
               uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
             end
-            if isfinite(dist) && mag > 0
+            if isfinite(dist) && dist > 0
               uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.262/1000, 2) ' [kly]' ]);
             end
             set(h, 'UIContextMenu', hcmenu);
-            
+            t=text(x+sz,y-sz,name); set(t,'Color', 'c');
           end
         end
       end
@@ -342,13 +350,16 @@ classdef astrometry < handle
     function [x,y] = sky2xy(self, ra,dec)
       x = []; y = [];
       if isempty(self.result), return; end
-      [x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
+      [x,y] = sky2xy_tan(self.result.wcs.meta, ...
+         ra*pi/180, dec*pi/180);
     end
     
-    function radec = xy2sky2(self, x,y)
+    function [ra,dec] = xy2sky(self, x,y)
       ra = []; dec = [];
       if isempty(self.result), return; end
-      [ra, dec] = compute_xy2ra(x,y, self.result.wcs.meta);
+      [ra, dec] = xy2sky_tan(self.result.wcs.meta, x,y);
+      ra =ra *180/pi;
+      dec=dec*180/pi;
     end
     
   end % methods
@@ -499,21 +510,6 @@ function ret = getresult(d, self)
   else
     disp([ '  Results are in: <a href="' d '">' d '</a>' ]);
   end
-  
-  % first get the log from the command
-  if ~isempty(self.log)
-    s = str2struct(self.log);
-    if isfield(s, 'Field_center') && isfield(s.Field_center,'RA_Dec_')
-      c = s.Field_center.RA_Dec_;
-      c(~isstrprop(c,'digit')) = ' ';
-      ret.RA_Dec_center = str2num(c);
-      disp([ 'Field center: RA,Dec=' c ' [deg]' ]);
-    end
-    if isfield(s, 'Field_size')
-      ret.RA_Dec_size   = s.Field_size;
-      disp([ 'Field size:          ' ret.RA_Dec_size ]);
-    end
-  end
 
   if exist(fullfile(d, 'results.wcs'), 'file')
     ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
@@ -539,22 +535,8 @@ function ret = getresult(d, self)
       ret.rotation = atan2(ret.wcs.meta.CD2_1, ret.wcs.meta.CD1_1)*180/pi;
       disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
       
-      % check for RA,Dec of center [ width height ]
-      [RA,Dec] = compute_xy2ra(ret.wcs.meta.IMAGEW/2,ret.wcs.meta.IMAGEH/2, ret.wcs.meta);
-      disp('Field center Ra, Dec from compute');
-      disp([ RA Dec ])
-      
-      % check for pixel of reference
-      [X,Y] = compute_ra2xy(ret.RA, ret.Dec, ret.wcs.meta); % OK -> width height
-      disp('Field ref XY from compute');
-      disp([ X Y ])
-      disp([ ret.wcs.meta.CRPIX1 ret.wcs.meta.CRPIX2 ]) % width height
-      
-      % check for ref to RA
-      [RA,Dec] = compute_xy2ra(ret.wcs.meta.CRPIX1, ret.wcs.meta.CRPIX2, ret.wcs.meta);
-      disp('Field ref RADec from compute');
-      disp([ RA Dec ])
-      disp([ ret.wcs.meta.CRVAL1 ret.wcs.meta.CRVAL2 ])
+      ret.wcs.meta.CD = [ ret.wcs.meta.CD1_1 ret.wcs.meta.CD1_2 ; 
+                          ret.wcs.meta.CD2_1 ret.wcs.meta.CD2_2 ];
     end
   end
   if exist(fullfile(d, 'results.rdls'), 'file')
@@ -562,16 +544,6 @@ function ret = getresult(d, self)
   end
   if exist(fullfile(d, 'results.corr'), 'file')
     ret.corr = read_fits(fullfile(d, 'results.corr'));
-    % compute the transformation matrix
-    if isfield(ret.corr.data, 'field_x')
-      x   = ret.corr.data.field_x;
-      y   = ret.corr.data.field_y;
-      ra  = ret.corr.data.field_ra;
-      dec = ret.corr.data.field_dec;
-      AD = [ ra dec ]'; % entries (stars) are columns. 2 rows [ A ; D ]
-      XY = [ x  y ]';   % entries (stars) are columns. 2 rows [ X ; Y ]
-      ret.ad2xy = XY*pinv(AD);  % [ X ; Y ] = ad2xy*[ RA ; DEC ]
-    end
   end
   if exist(fullfile(d, 'results.json'), 'file')
     ret.json = loadjson(fullfile(d, 'results.json'));
@@ -613,71 +585,3 @@ function catalogs = getcatalogs
   loaded_catalogs = catalogs;
 end % getcatalogs
 
-function c = fun(XY, RA, Dec, wcs)
-  X=XY(1); Y=XY(2);
-  [RA1,Dec1] = compute_xy2ra(X,Y, wcs);
-  c = (RA-RA1)^2 + (Dec-Dec1)^2;  % minimize that
-end
-
-function [X,Y] = compute_ra2xy(RA, Dec, wcs)
-% compute_ra2xy(ra, dec, wcs)
-% 
-% input:
-%   ra,dec: coordinates to convert (in deg)
-%   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
-%             CD1_1, CD1_2, CD2_1, CD2_2
-% output:
-%   x,y:    pixel coordinates [width height]
-
-% use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
-
-  % we start from the image center and iterate until we match
-  
-  % critera: 
-  
-  % iterate: [RA1,Dec1] = compute_xy2ra(X,Y, wcs) until RA,Dec are OK
-  
-  X0 = wcs.IMAGEH/2; Y0 = wcs.IMAGEW/2;
-  
-  % fun is above
-  XY = fminsearch(@(XY)fun(XY, RA, Dec, wcs), [X0 Y0]);
-  
-  X = XY(1); Y=XY(2);
-  
-end % compute_ra2xy
-
-function [RA,Dec] = compute_xy2ra(X,Y, wcs)
-% compute_xy2ra(x, y, wcs)
-%
-% input:
-%   x,y:    pixel coordinates to convert [width height]
-%   wcs:    WCS structure with e.g. fields CRVAL1, CRVAL2, CRPIX1, CRPIX2
-%             CD1_1, CD1_2, CD2_1, CD2_2
-% output:
-%   ra,dec: sky coordinates (in deg)
-
-% use: http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/wirwolf/docs/CD_PV_keywords.pdf
-
-  CRVAL1 = wcs.CRVAL1;
-  CRVAL2 = wcs.CRVAL2;
-  
-  CRPIX1 = wcs.CRPIX1;  % width
-  CRPIX2 = wcs.CRPIX2;  % height
-  
-  CD1_1  = wcs.CD1_1;
-  CD1_2  = wcs.CD1_2;
-  CD2_1  = wcs.CD2_1;
-  CD2_2  = wcs.CD2_2;
-  
-  x = CD1_1*(X - CRPIX1) + CD1_2*(Y - CRPIX2);
-  y = CD1_1*(X - CRPIX1) + CD2_2*(Y - CRPIX2);
-  
-  % use the 'no distorsion' case
-  xi = x; eta = y;
-  
-  % Eq (A29-31)
-  alpha = atand( xi/cosd(CRVAL2)/(1-eta*tand(CRVAL2)) );
-  RA    = alpha+CRVAL1;
-  Dec   = atand( (eta+tand(CRVAL2))*cosd(alpha) / ( 1 - eta*tand(CRVAL2) )  );
-  
-end % compute_xy2ra
