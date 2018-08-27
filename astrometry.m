@@ -312,6 +312,7 @@ classdef astrometry < handle
             typ  = self.catalogs.deep_sky_objects.TYPE{st};
             mag  = self.catalogs.deep_sky_objects.MAG(st);
             sz   = self.catalogs.deep_sky_objects.SIZE(st); % arcmin
+            dist = self.catalogs.deep_sky_objects.DIST(st);
             
             if isfinite(sz) && sz > 5
               h = plot(x,y,'co'); 
@@ -325,8 +326,11 @@ classdef astrometry < handle
             uimenu(hcmenu, 'Label', [ 'DEC= ' num2str(dec_deg) ':' num2str(dec_min) ':' num2str(dec_s) ]);
             uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
             uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
-            if isfinite(mag)
+            if isfinite(mag) && mag > 0
               uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
+            end
+            if isfinite(dist) && mag > 0
+              uimenu(hcmenu, 'Label', [ 'DIST= ' num2str(dist*3.262/1000, 2) ' [kly]' ]);
             end
             set(h, 'UIContextMenu', hcmenu);
             
@@ -335,6 +339,17 @@ classdef astrometry < handle
       end
     end % image
     
+    function [x,y] = sky2xy(self, ra,dec)
+      x = []; y = [];
+      if isempty(self.result), return; end
+      [x,y] = compute_ra2xy(ra, dec, self.result.wcs.meta);
+    end
+    
+    function radec = xy2sky2(self, x,y)
+      ra = []; dec = [];
+      if isempty(self.result), return; end
+      [ra, dec] = compute_xy2ra(x,y, self.result.wcs.meta);
+    end
     
   end % methods
   
