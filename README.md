@@ -89,13 +89,19 @@ See above for the additional arguments.
 Explicitly use the http://nova.astrometry.net/ web service.
 See above for the additional arguments.
 
-**as.result.RA** and **as.result.Dec** provide the center coordinates of the 
-field (in [deg]), while **as.result.RA_hms** and **as.result.Dec_dms** provide 
-the 'HH:MM:SS' and 'Deg:MM:SS' coordinates. The field rotation wrt sky is stored
-in **as.result.rotation**. The pixel scale is given in [arcmin/pixel] 
-as **as.result.pixel_scale**. The field extension is given with its bounds as
-**as.result.RA_min**, **as.result.RA_max**, **as.result.Dec_min**, and 
-**as.result.Dec_min**. The constallation name is stored in **as.result.Constellation**.
+
+Using results
+---------
+Once an image has been solved with the 'as' object, you can use the astrometry results.
+
+* **as.result.RA** and **as.result.Dec** provide the center coordinates of the 
+  field (in [deg]), while **as.result.RA_hms** and **as.result.Dec_dms** provide the 
+  'HH:MM:SS' and 'Deg:MM:SS' coordinates. 
+* The field rotation wrt sky is stored in **as.result.rotation**. 
+* The pixel scale is given in [arcmin/pixel] as **as.result.pixel_scale**. 
+* The field extension is given with its bounds as **as.result.RA_min**, **as.result.RA_max**,
+  **as.result.Dec_min**, and **as.result.Dec_min**. 
+* The constellation name is stored in **as.result.Constellation**.
  
 Improving the plate-solve efficiency
 ------------------------------------
