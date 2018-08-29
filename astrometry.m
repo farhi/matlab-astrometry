@@ -203,7 +203,7 @@ classdef astrometry < handle
       % Example:
       %   as=annotation(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
       [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
-    end
+    end % annotation
     
     function self = web(self, filename, varargin)
       % astrometry.web: loads an image and identifies its objects using web service
@@ -223,7 +223,7 @@ classdef astrometry < handle
       % Example:
       %   as=web(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
       [ret, filename] = solve(self, filename, 'web', varargin{:});
-    end
+    end % web
     
     function [ret, filename] = solve(self, filename, method, varargin)
       % astrometry.solve: solve an image field. Plot further results with image method.
@@ -363,13 +363,14 @@ classdef astrometry < handle
       end
       
       if ~isempty(self.result)
-        ret.duration= etime(clock, t0);
+        self.result.duration= etime(clock, t0);
       end
       disp([ mfilename ': ' upper(self.status) ': plate solve for image ' filename ' using ' method ])
+      ret = self.result;
     
     end % solve
     
-    function load(self, d)
+    function ret = load(self, d)
       % astrometry.load: load astrometry files (WCS,FITS) from a directory
       %
       %   The directory may contain WCS, CORR, RDLS or JSON, and image.
@@ -392,6 +393,7 @@ classdef astrometry < handle
           end
         end
       end
+      ret = self.result;
       
     end % load
     
@@ -418,18 +420,24 @@ classdef astrometry < handle
         return
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
-      image(im); title(self.filename);
+      image(im);
       im_sz = size(im);
       clear im;
       
+      ret = self.result;
+      
+      % set title
+      [p,f,e] = fileparts(self.filename);
+      if isfield(ret, 'Constellation')
+        title([ f e ' in ' ret.Constellation ]);
+      else
+        title([ f e ]);
+      end
+      
       % overlay results
-      if ~isempty(self.result) && strcmp(self.status, 'success')
-        ret = self.result;
+      if ~isempty(self.result) && strcmp(self.status, 'success') && isfield(self.result, 'RA_hms')
+        
         hold on
-        
-        % identify constellation we are in
-        
-        
         % central coordinates
         sz = im_sz/2; % [ height width layers ]
         h  = plot(sz(2), sz(1), 'r+'); set(h, 'MarkerSize', 16);
@@ -654,6 +662,11 @@ function ret = getresult(d, self)
       ret.RA_max  = max(RA);
       ret.Dec_min = min(Dec);
       ret.Dec_max = max(Dec);
+      
+      % identify constellation we are in
+      [m, index] = min( (ret.RA - self.catalogs.constellations.RA).^2 ...
+                      + (ret.Dec- self.catalogs.constellations.DEC).^2 );
+      ret.Constellation = self.catalogs.constellations.Name{index};
     end
   end
   if exist(fullfile(d, 'results.rdls'), 'file')
