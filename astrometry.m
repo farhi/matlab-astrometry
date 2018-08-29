@@ -1,7 +1,15 @@
 classdef astrometry < handle
   % astrometry: A Matlab class to annotate astrophotography images (identify objects/astrometry)
   %
-  %  Purpose
+  %  Methods:
+  %  
+  %   as=astrometry(filename)
+  %   image(as)
+  %   load(astrometry, dir)
+  %   annotation(astrometry, filename, ...)
+  %   web(astrometry, filename, ...)
+  %   sky2sx(as, ra, dec)
+  %   xy2sky(as, x, y)
   %
   % Credit: sky2xy and xy2sky from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
   % (c) E. Farhi, 2018. GPL2.
@@ -25,6 +33,23 @@ classdef astrometry < handle
     function self=astrometry(filename, varargin)
       % astrometry: loads an image and identifies its objects using astrometry.net
       % 
+      % as = astrometry;
+      %   Create a solver, but does not solve. 
+      %   Use annotate(as, file) or web(as, file) afterwards
+      % as = astrometry(file, ...);
+      %   Solve the given astrophotography image with local or web method.
+      %
+      % input(optional):
+      %    filename: an image to annotate
+      %    any name/value pair as:
+      %      ra:      approximate RA coordinate  (e.g. deg or  'hh:mm:ss')
+      %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
+      %      radius:  approximate field size     (in deg)
+      %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
+      %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      % 
+      % Example:
+      %   as=astrometry('M33.jpg','scale-low', 0.5, 'scale-high',2);
       self.executables = find_executables;
       self.catalogs    = getcatalogs;
       
@@ -40,11 +65,43 @@ classdef astrometry < handle
       
     end % astrometry
     
-    function [ret, filename] = annotation(self, filename, method, varargin)
+    function self = annotation(self, filename, varargin)
+      % astrometry.annotation: loads an image and identifies its objects using local solve-field
+      %
+      % as = annotation(astrometry, file, ...);
+      %   Solve the given astrophotography image with local method.
+      %
+      % input(optional):
+      %    filename: an image to annotate
+      %    any name/value pair as:
+      %      ra:      approximate RA coordinate  (e.g. deg or  'hh:mm:ss')
+      %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
+      %      radius:  approximate field size     (in deg)
+      %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
+      %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      % 
+      % Example:
+      %   as=annotation(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
       [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
     end
     
-    function [ret, filename] = web(self, filename, method, varargin)
+    function self = web(self, filename, varargin)
+      % astrometry.web: loads an image and identifies its objects using web service
+      %
+      % as = web(astrometry, file, ...);
+      %   Solve the given astrophotography image with web method.
+      %
+      % input(optional):
+      %    filename: an image to annotate
+      %    any name/value pair as:
+      %      ra:      approximate RA coordinate  (e.g. deg or  'hh:mm:ss')
+      %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
+      %      radius:  approximate field size     (in deg)
+      %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
+      %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      % 
+      % Example:
+      %   as=web(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
       [ret, filename] = solve(self, filename, 'web', varargin{:});
     end
     
@@ -59,7 +116,7 @@ classdef astrometry < handle
       %    any name/value pair as:
       %      ra:      approximate RA coordinate  (e.g. deg or  'hh:mm:ss')
       %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
-      %      radius:  approximate field size      (in deg)
+      %      radius:  approximate field size     (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
       %      
@@ -193,6 +250,12 @@ classdef astrometry < handle
     end % solve
     
     function load(self, d)
+      % astrometry.load: load astrometry files (WCS,FITS) from a directory
+      %
+      %   The directory may contain WCS, CORR, RDLS or JSON, and image.
+      %   No solve plate is performed, only data is read.
+      %
+      % as = load(astrometry, directory);
       self.result = getresult(d, self);
       if isempty(self.result)
         self.status = 'failed';
@@ -212,7 +275,11 @@ classdef astrometry < handle
     end
     
     function fig = image(self)
-    
+      % astrometry.image: show the solve-plate image with annotations
+      %
+      %   as=astrometry(file);
+      %   image(as);
+      
       fig = [];
       try
         im  = imread(self.filename);
@@ -305,6 +372,12 @@ classdef astrometry < handle
     end % image
     
     function [x,y] = sky2xy(self, ra,dec)
+      % astrometry.sky2xy: convert RA,Dec coordinates to x,y pixels on image
+      %
+      % input:
+      %   ra,dec: RA and Dec [deg]
+      % output:
+      %   x,y:    pixel coordinates
       x = []; y = [];
       if isempty(self.result), return; end
       [x,y] = sky2xy_tan(self.result.wcs.meta, ...
@@ -312,6 +385,12 @@ classdef astrometry < handle
     end
     
     function [ra,dec] = xy2sky(self, x,y)
+      % astrometry.xy2sky: convert pixel image coordinates to RA,Dec
+      %
+      % input:
+      %   x,y:    pixel coordinates
+      % output:
+      %   ra,dec: RA and Dec [deg]
       ra = []; dec = [];
       if isempty(self.result), return; end
       [ra, dec] = xy2sky_tan(self.result.wcs.meta, x,y); % MAAT Ofek (private)
