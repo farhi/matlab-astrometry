@@ -1,7 +1,97 @@
 classdef astrometry < handle
   % astrometry: A Matlab class to annotate astrophotography images (identify objects/astrometry)
   %
-  %  Methods:
+  % #matlab-astrometry
+  %
+  % Purpose
+  % -------
+  %
+  %  This Matlab class allows to use the astrometry.net software, either installed 
+  %  locally, or through internet connection, in order to solve (annotate) 
+  %  astrophotography images.
+  %
+  % Syntax/Usage
+  % ------------
+  %
+  %  First navigate to the matlab-astrometry directory or type:
+  %
+  %  addpath /path/to/matlab-astrometry
+  %
+  %  Then use:
+  %
+  %  as = astrometry;
+  %    Create a solver, but does not solve. 
+  %    Use annotation(as, file) or web(as, file) afterwards.
+  %
+  %  as = astrometry(file, ...); image(as);
+  %    Solve the given astrophotography image with local or web method. 
+  %    Then plot the result. Additional arguments may include name/value pairs
+  %    (see example below):
+  %
+  %      ra:      approximate RA coordinate  (e.g. deg or  'hh:mm:ss')
+  %      dec:     approximate DEC coordinate (e.g. deg or 'deg:mm:ss')
+  %      radius:  approximate field size     (in deg)
+  %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
+  %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+  %
+  %  These two syntaxes will try first any local astrometry.net installation, and
+  %  if failed, the http://nova.astrometry.net/ service.
+  %
+  % Going further
+  % -------------
+  %
+  %  as = astrometry.load(dir); image(as);
+  %    Read an existing Astrometry.net set of files stored in a given directory.
+  %    The directory may contain WCS, CORR, RDLS, JSON, and image.
+  %    Then plot the result. This allows to get previous data files, or obtained
+  %    externally, and label them. The 'as' astrometry object must have been used
+  %    to solve or import astrometry data.
+  %
+  %  [x,y] = sky2xy(as, ra, dec)
+  %    Convert a RA/DEC set of coordinates (in [deg] or 'hh:mm:ss'/'deg::mm:ss')
+  %    into pixel coordinates on the image. The 'as' astrometry object must have 
+  %    been used to solve or import astrometry data.
+  %
+  %  [ra, dec] = xy2sky(as, x,y)
+  %  [ra, dec] = xy2sky(as, x,y, 'string')
+  %    Convert pixel coordinates on the image into a RA/DEC set of coordinates 
+  %    (in [deg]). When given a 'string' argument, the result is given in 
+  %    'hh:mm:ss'/'deg:mm:ss'. The 'as' astrometry object must have been used
+  %    to solve or import astrometry data.
+  %
+  %  f=astrometry.findobj('object name')
+  %    Return information about a named object (star, deep sky object) from the 
+  %    data base. Example: astrometry.findobj('M33')
+  %
+  %  as = astrometry.annotation(file, ...);
+  %    Explicitly use the local 'solve-field' astrometry.net installation.
+  %    See above for the additional arguments.
+  %
+  %  as = astrometry.web(file, ...);
+  %    Explicitly use the http://nova.astrometry.net/ web service.
+  %    See above for the additional arguments.
+  %
+  % Improving the plate-solve efficiency
+  % ------------------------------------
+  %
+  %  To facilitate the plate-solve/annotation of images, you may:
+  %
+  %  * specify the field size with additional arguments such as: 
+  %     astrometry(..., 'scale-low', 0.5, 'scale-high',2)
+  %
+  %  * provide an initial guess for the location, and its range, such as:
+  %     astrometry('examples/M13-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
+  %
+  %  * add more star data bases (e.g. 2MASS over Tycho2).
+  %
+  % Examples
+  % --------
+  %
+  %  as=astrometry('examples/M13-2018-05-19.jpg','scale-low', 0.5, 'scale-high',2);
+  %  image(as);
+  %
+  % Methods
+  % -------
   %  
   %   as=astrometry(filename)
   %   image(as)
@@ -10,8 +100,38 @@ classdef astrometry < handle
   %   web(astrometry, filename, ...)
   %   sky2sx(as, ra, dec)
   %   xy2sky(as, x, y)
+  %   findobj(as, 'name')
   %
-  % Credit: sky2xy and xy2sky from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
+  % Installation:
+  % -------------
+  %
+  %  Local installation (recommended)
+  %
+  %    On Linux systems, install the 'astrometry.net' package, as well as the 
+  %    'tycho2' data base. On Debian-class systems, this is achieved with:
+  %
+  %       sudo apt install astrometry.net astrometry-data-tycho2 sextractor
+  %    
+  %    On other systems, you will most probably need to compile it.
+  %    See: http://astrometry.net/doc/build.html
+  %    RedHat/Arch/MacOSX have specific installation instructions.
+  %
+  %    If you have images spanning on very tiny areas (e.g. much smaller than a 
+  %    degree), you will most probably need to install the '2MASS' data base.
+  %
+  %  Using the web service.
+  %
+  %    You will need Python to be installed, and to have a 'NOVA astrometry API' key.
+  %    Enter the API_KEY when prompt, or set it with:
+  %
+  %    as = astrometry;
+  %    as.api_key = 'blah-blah';
+  %    as.web(file, ...)
+  %
+  % Credit: 
+  %
+  %    sky2xy and xy2sky from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
+  %
   % (c) E. Farhi, 2018. GPL2.
 
   properties
@@ -35,7 +155,7 @@ classdef astrometry < handle
       % 
       % as = astrometry;
       %   Create a solver, but does not solve. 
-      %   Use annotate(as, file) or web(as, file) afterwards
+      %   Use annotation(as, file) or web(as, file) afterwards
       % as = astrometry(file, ...);
       %   Solve the given astrophotography image with local or web method.
       %
@@ -264,7 +384,8 @@ classdef astrometry < handle
         % is the image available ? use one from the directory
         if ~exist(self.filename, 'file')
           % search in the result directory
-          d = dir(fullfile(self.result.dir, '*.png'));
+          d = [ dir(fullfile(self.result.dir, '*.png')) ; 
+                dir(fullfile(self.result.dir, '*.fits')) ];
           if ~isempty(d), 
             d=d(1);
             self.filename = fullfile(self.result.dir, d.name);
@@ -272,7 +393,15 @@ classdef astrometry < handle
         end
       end
       
-    end
+    end % load
+    
+    function fig = plot(self)
+      % astrometry.plot: show the solve-plate image with annotations. Same as image.
+      %
+      %   as=astrometry(file);
+      %   plot(as);
+      fig = image(self);
+    end % plot
     
     function fig = image(self)
       % astrometry.image: show the solve-plate image with annotations
@@ -380,23 +509,90 @@ classdef astrometry < handle
       %   x,y:    pixel coordinates
       x = []; y = [];
       if isempty(self.result), return; end
+      if ~isscalar(ra)
+        ra = getra(ra);
+      end
+      if ~isscalar(dec)
+        dec = getra(dec);
+      end
       [x,y] = sky2xy_tan(self.result.wcs.meta, ...
          ra*pi/180, dec*pi/180);                         % MAAT Ofek (private)
     end
     
-    function [ra,dec] = xy2sky(self, x,y)
+    function [ra,dec] = xy2sky(self, x,y, str)
       % astrometry.xy2sky: convert pixel image coordinates to RA,Dec
       %
       % input:
       %   x,y:    pixel coordinates
+      %   str: when 
       % output:
       %   ra,dec: RA and Dec [deg]
       ra = []; dec = [];
       if isempty(self.result), return; end
+      
+      if nargin > 3, str=true; else str=false; end
       [ra, dec] = xy2sky_tan(self.result.wcs.meta, x,y); % MAAT Ofek (private)
       ra =ra *180/pi;
       dec=dec*180/pi;
+      if str
+        ra = getra( ra,  'string');
+        dec= getdec(dec, 'string');
+      end
     end
+    
+    function found = findobj(self, name)
+      % findobj(sc, name): find a given object in catalogs. Select it.
+      catalogs = fieldnames(self.catalogs);
+      found = [];
+      
+      % check first for name without separator
+      if ~any(name == ' ')
+        [n1,n2]  = strtok(name, '0123456789');
+        found = findobj(self, [ n1 ' ' n2 ]);
+        if ~isempty(found) return; end
+      end
+      namel= strtrim(lower(name));
+      for f=catalogs(:)'
+        catalog = self.catalogs.(f{1});
+        if ~isfield(catalog, 'MAG'), continue; end
+        NAME = lower(catalog.NAME);
+        % search for name
+        index = find(~cellfun(@isempty, strfind(NAME, [ ';' namel ';' ])));
+        if isempty(index)
+        index = find(~cellfun(@isempty, strfind(NAME, [ namel ';' ])));
+        end
+        if isempty(index)
+        index = find(~cellfun(@isempty, strfind(NAME, [ ';' namel ])));
+        end
+        if isempty(index)
+        index = find(~cellfun(@isempty, strfind(NAME, [ namel ])));
+        end
+        if ~isempty(index)
+          found.index   = index(1);
+          found.catalog = f{1};
+          found.RA      = catalog.RA(found.index);
+          found.DEC     = catalog.DEC(found.index);
+          found.MAG     = catalog.MAG(found.index);
+          found.TYPE    = catalog.TYPE{found.index};
+          found.NAME    = catalog.NAME{found.index};
+          found.DIST    = catalog.DIST(found.index);
+          break;
+        end
+      end
+
+      if ~isempty(found)
+        disp([ mfilename ': Found object ' name ' as: ' found.NAME ])
+        if found.DIST > 0
+          disp(sprintf('  %s: Magnitude: %.1f ; Type: %s ; Dist: %.3g [ly]', ...
+            found.catalog, found.MAG, found.TYPE, found.DIST*3.262 ));
+        else
+          disp(sprintf('  %s: Magnitude: %.1f ; Type: %s', ...
+            found.catalog, found.MAG, found.TYPE ));
+        end
+      else
+        disp([ mfilename ': object ' name ' was not found.' ])
+      end
+    end % findobj
     
   end % methods
   
