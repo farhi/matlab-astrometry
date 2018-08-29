@@ -1,5 +1,7 @@
 # matlab-astrometry
   astrometry: A Matlab class to annotate astrophotography images (identify objects/astrometry)
+  
+  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M13-solved.jpg?raw=true)
  
   Purpose
   -------
@@ -88,7 +90,7 @@
       astrometry(..., 'scale-low', 0.5, 'scale-high',2)
  
    * provide an initial guess for the location, and its range, such as:
-      astrometry('examples/M13-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
+      astrometry('examples/M33-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
  
    * add more star data bases (e.g. 2MASS over Tycho2).
  
@@ -99,6 +101,8 @@
    as=astrometry('examples/M13-2018-05-19.jpg','scale-low', 0.5, 'scale-high',2);
    image(as);
 ```
+
+  You will then get, in about 30 sec, 
 
   Methods
   -------
