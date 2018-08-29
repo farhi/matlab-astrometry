@@ -40,6 +40,14 @@ classdef astrometry < handle
       
     end % astrometry
     
+    function [ret, filename] = annotation(self, filename, method, varargin)
+      [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
+    end
+    
+    function [ret, filename] = web(self, filename, method, varargin)
+      [ret, filename] = solve(self, filename, 'web', varargin{:});
+    end
+    
     function [ret, filename] = solve(self, filename, method, varargin)
       % astrometry.solve: solve an image field. Plot further results with image method.
       %
@@ -171,21 +179,37 @@ classdef astrometry < handle
       [status, self.log] = system(cmd);
       
       if status ~= 0
-        ret = [];
-      else
-        ret = getresult(d, self);
-      end
-      
-      if isempty(ret)
+        self.result = []; 
         self.status = 'failed';
       else
+        load(self, d);
+      end
+      
+      if ~isempty(self.result)
         ret.duration= etime(clock, t0);
-        self.status = 'success';
-        self.result = ret;
       end
       disp([ mfilename ': ' upper(self.status) ': plate solve for image ' filename ' using ' method ])
     
     end % solve
+    
+    function load(self, d)
+      self.result = getresult(d, self);
+      if isempty(self.result)
+        self.status = 'failed';
+      else
+        self.status = 'success';
+        % is the image available ? use one from the directory
+        if ~exist(self.filename, 'file')
+          % search in the result directory
+          d = dir(fullfile(self.result.dir, '*.png'));
+          if ~isempty(d), 
+            d=d(1);
+            self.filename = fullfile(self.result.dir, d.name);
+          end
+        end
+      end
+      
+    end
     
     function fig = image(self)
     
@@ -245,14 +269,10 @@ classdef astrometry < handle
             mag     = catalog.MAG(obj);
             sz      = catalog.SIZE(obj); % arcmin
             dist    = catalog.DIST(obj);
-            
-            
-            
+
             % stars in green, DSO in cyan
-            if strcmp(catalogs{1},'stars'), 
-              c = 'g'; sz = 12;
-            else 
-              c = 'c'; 
+            if strcmp(catalogs{1},'stars'), c = 'g'; sz = 12;
+            else                            c = 'c'; 
             end
             
             % plot symbol
@@ -323,15 +343,19 @@ function ret = getresult(d, self)
     
     % get image center and print it
     if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
-      % get central coordinates
       wcs = ret.wcs.meta;
-      ret.size     = [ wcs.IMAGEW wcs.IMAGWH ];
+      ret.wcs.meta.CD = [ wcs.CD1_1 wcs.CD1_2 ; 
+                          wcs.CD2_1 wcs.CD2_2 ];
+                          
+      % get central coordinates
+      
+      ret.size     = [ wcs.IMAGEW wcs.IMAGEH ];
       sz  = ret.size/2;
-      
-      [ret.RA, ret.Dec]     = xy2sky(self, sz(1), sz(2));
-      ret.RA_hms   = getra(ra/15, 'string');
-      ret.Dec_dms  = getdec(dec, 'string');
-      
+
+      [ret.RA, ret.Dec] = xy2sky_tan(ret.wcs.meta, sz(1), sz(2)); % MAAT Ofek (private)
+      ret.RA=ret.RA*180/pi; ret.Dec=ret.Dec*180/pi;
+      ret.RA_hms   = getra(ret.RA/15,   'string');
+      ret.Dec_dms  = getdec(ret.Dec, 'string');
       
       disp([ 'Field center:    RA =' ret.RA_hms  ' [h:min:s]    ; ' ...
         num2str(ret.RA)  ' [deg]']);
@@ -343,16 +367,14 @@ function ret = getresult(d, self)
       % compute rotation angle
       ret.rotation = atan2(wcs.CD2_1, wcs.CD1_1)*180/pi;
       disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
-      
-      ret.wcs.meta.CD = [ wcs.CD1_1 wcs.CD1_2 ; 
-                          wcs.CD2_1 wcs.CD2_2 ];
                           
       % compute RA,Dec image bounds
       RA=[]; Dec=[];
-      [RA(end+1), Dec(end+1)]     = xy2sky(self, wcs.IMAGEW, wcs.IMAGWH);
-      [RA(end+1), Dec(end+1)]     = xy2sky(self, 1         , wcs.IMAGWH);
-      [RA(end+1), Dec(end+1)]     = xy2sky(self, wcs.IMAGEW, 1);
-      [RA(end+1), Dec(end+1)]     = xy2sky(self, 1         , 1);
+      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, wcs.IMAGEH);
+      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , wcs.IMAGEH);
+      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, 1);
+      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , 1);
+      RA = RA*180/pi; Dec = Dec*180/pi;
       ret.RA_min  = min(RA);
       ret.RA_max  = max(RA);
       ret.Dec_min = min(Dec);
@@ -431,24 +453,32 @@ function [ra_h, ra_min, ra_s] = getra(ra, str)
   % getra: convert any input RA (in hours) into h and min
   
   if nargin > 1, str = true; else str=false; end
-  ra_h = []; ra_min = [];
   if ischar(ra)
     ra = repradec(ra);
   end
   if isstruct(ra) && isfield(ra, 'RA')
     ra = ra.RA;
-  elseif isstruct(ra) && isfield(ra, 'h') && isfield(ra, 'min')
-    ra_h = ra.h;
-    ra_min = ra.min;
-    return
+  end
+  if isstruct(ra)
+    if isfield(ra, 'h'),   ra_h   = ra.h; end
+    if isfield(ra, 'min'), ra_min = ra.min; end
+    if isfield(ra, 's'),   ra_s   = ra.s; end
   end
   if isnumeric(ra)
     if isscalar(ra)
-      ra_h   = fix(ra); ra_min = abs(ra - ra_h)*60;
+      ra_h   = fix(ra); 
+      ra_min = abs(ra - ra_h)*60; 
+      ra_s   = abs(ra_min - fix(ra_min))*60;
+      ra_min = fix(ra_min);
     elseif numel(ra) == 2
-      ra_h = ra(1);     ra_min = abs(ra(2));
+      ra_h   = ra(1);     
+      ra_min = abs(ra(2)); 
+      ra_s   = abs(ra_min - fix(ra_min))*60;
+      ra_min = fix(ra_min);
     elseif numel(ra) == 3
-      ra_h = ra(1);     ra_min = abs(ra(2))+abs(ra(3)/60);
+      ra_h   = ra(1);
+      ra_min = ra(2);
+      ra_s   = ra(3);
     end
   else
     disp([ mfilename ': invalid RA.' ])
@@ -462,9 +492,6 @@ function [ra_h, ra_min, ra_s] = getra(ra, str)
     end
   elseif nargout == 2
     ra_min = ra_min + ra_s/60;
-  elseif nargout == 3
-    ra_s   = abs(ra_min - fix(ra_min))*60;
-    ra_min = fix(ra_min);
   end
 end % getra
 
@@ -475,20 +502,29 @@ function [dec_deg, dec_min, dec_s] = getdec(dec, str)
   if ischar(dec)
     dec = repradec(dec);
   end
-  dec_s   = 0;
   if isstruct(dec) && isfield(dec, 'DEC')
     dec = dec.DEC;
-  elseif isstruct(dec) && isfield(dec, 'deg') && isfield(dec, 'min')
-    dec_deg = dec.deg;
-    dec_min = dec.min;
+  end
+  if isstruct(dec)
+    if isfield(dec, 'deg') dec_deg = dec.deg; end
+    if isfield(dec, 'min') dec_min = dec.min; end
+    if isfield(dec, 'min') dec_s   = dec.s; end
   end
   if isnumeric(dec)
     if isscalar(dec)
-      dec_deg = floor(dec); dec_min = abs(dec - dec_deg)*60;
+      dec_deg = floor(dec); 
+      dec_min = abs(dec - dec_deg)*60;
+      dec_s   = abs(dec_min - fix(dec_min))*60;
+      dec_min = fix(dec_min);
     elseif numel(dec) == 2
-      dec_deg = dec(1);   dec_min = abs(dec(2));
+      dec_deg = dec(1);   
+      dec_min = abs(dec(2));
+      dec_s   = abs(dec_min - fix(dec_min))*60;
+      dec_min = fix(dec_min);
     elseif numel(dec) == 3
-      dec_deg = dec(1);   dec_min = abs(dec(2))+abs(dec(3)/60);
+      dec_deg = dec(1);   
+      dec_min = dec(2);
+      dec_s   = dec(3);
     end
   else
     disp([ mfilename ': invalid DEC' ])
@@ -502,9 +538,6 @@ function [dec_deg, dec_min, dec_s] = getdec(dec, str)
     end
   elseif nargout == 2
     dec_min = dec_min + dec_s/60;
-  elseif nargout == 3
-    dec_s   = abs(dec_min - fix(dec_min))*60;
-    dec_min = fix(dec_min);
   end
 end % getdec
 
