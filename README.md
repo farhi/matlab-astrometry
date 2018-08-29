@@ -1,4 +1,4 @@
-#matlab-astrometry
+# matlab-astrometry
   astrometry: A Matlab class to annotate astrophotography images (identify objects/astrometry)
  
   Purpose
@@ -19,10 +19,12 @@
    Then use:
  
    **as = astrometry;**
+   
      Create a solver, but does not solve. 
      Use annotation(as, file) or web(as, file) afterwards.
  
    **as = astrometry(file, ...); image(as);**
+   
      Solve the given astrophotography image with local or web method. 
      Then plot the result. Additional arguments may include name/value pairs
      (see example below):
@@ -40,6 +42,7 @@
   -------------
  
    **as = astrometry.load(dir); image(as);**
+   
      Read an existing Astrometry.net set of files stored in a given directory.
      The directory may contain WCS, CORR, RDLS, JSON, and image.
      Then plot the result. This allows to get previous data files, or obtained
@@ -47,26 +50,32 @@
      to solve or import astrometry data.
  
    **[x,y] = sky2xy(as, ra, dec)**
+   
      Convert a RA/DEC set of coordinates (in [deg] or 'hh:mm:ss'/'deg::mm:ss')
      into pixel coordinates on the image. The 'as' astrometry object must have 
      been used to solve or import astrometry data.
  
    **[ra, dec] = xy2sky(as, x,y)**
+   
    **[ra, dec] = xy2sky(as, x,y, 'string')**
+   
      Convert pixel coordinates on the image into a RA/DEC set of coordinates 
      (in [deg]). When given a 'string' argument, the result is given in 
      'hh:mm:ss'/'deg:mm:ss'. The 'as' astrometry object must have been used
      to solve or import astrometry data.
  
    **f=astrometry.findobj('object name')**
+   
      Return information about a named object (star, deep sky object) from the 
      data base. Example: astrometry.findobj('M33')
  
    **as = astrometry.annotation(file, ...);**
+   
      Explicitly use the local 'solve-field' astrometry.net installation.
      See above for the additional arguments.
  
    **as = astrometry.web(file, ...);**
+   
      Explicitly use the http://nova.astrometry.net/ web service.
      See above for the additional arguments.
  
@@ -110,9 +119,11 @@
  
      On Linux systems, install the 'astrometry.net' package, as well as the 
      'tycho2' data base. On Debian-class systems, this is achieved with:
-```
+     
+```bash
         sudo apt install astrometry.net astrometry-data-tycho2 sextractor
 ```
+
      On other systems, you will most probably need to compile it.
      See: http://astrometry.net/doc/build.html
      RedHat/Arch/MacOSX have specific installation instructions.
