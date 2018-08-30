@@ -557,7 +557,7 @@ classdef astrometry < handle
         ra = getra(ra);
       end
       if ~isscalar(dec)
-        dec = getra(dec);
+        dec = getdec(dec);
       end
       [x,y] = sky2xy_tan(self.result.wcs.meta, ...
          ra*pi/180, dec*pi/180);                         % MAAT Ofek (private)
