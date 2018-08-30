@@ -71,6 +71,11 @@ classdef astrometry < handle
   %    Explicitly use the http://nova.astrometry.net/ web service.
   %    See above for the additional arguments.
   %
+  %  web(as)
+  %    For a solved image, the corresponding sky view is displayed on 
+  %    http://www.sky-map.org . The 'as' astrometry object must have been used
+  %    to solve or import astrometry data.
+  %
   % Using results
   % ---------
   % Once an image has been solved with the 'as' object, you can use the astrometry results.
@@ -223,6 +228,8 @@ classdef astrometry < handle
       %
       % as = web(astrometry, file, ...);
       %   Solve the given astrophotography image with web method.
+      % web(as)
+      %   Once solved, the field is displayed on http://www.sky-map.org
       %
       % input(optional):
       %    filename: an image to annotate
@@ -235,7 +242,22 @@ classdef astrometry < handle
       % 
       % Example:
       %   as=web(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
-      [ret, filename] = solve(self, filename, 'web', varargin{:});
+      if nargin == 1 && ~isempty(self.result)
+        % display a Sky-Map.org view of the astrometry field
+        sz = max([ self.result.RA_max-self.result.RA_min self.result.Dec_max-self.result.Dec_min ]);
+        z  = 160.*2.^(0:-1:-8); % zoom levels in deg in sky-map
+        z  = find(sz*4 > z, 1);
+        if isempty(z), z=9; end
+        url = sprintf([ 'http://www.sky-map.org/?ra=%f&de=%f&zoom=%d' ...
+          '&show_grid=1&show_constellation_lines=1' ...
+          '&show_constellation_boundaries=1' ...
+          '&show_const_names=0&show_galaxies=1&img_source=DSS2' ], ...
+          self.result.RA/15, self.result.Dec, z);
+          % open in system browser
+          open_system_browser(url);
+      else
+        [ret, filename] = solve(self, filename, 'web', varargin{:});
+      end
     end % web
     
     function [ret, filename] = solve(self, filename, method, varargin)
@@ -458,6 +480,7 @@ classdef astrometry < handle
         uimenu(hcmenu, 'Label', '<html><b>Field center</b></html>');
         uimenu(hcmenu, 'Label', [ 'RA=  ' ret.RA_hms ]);
         uimenu(hcmenu, 'Label', [ 'DEC= ' ret.Dec_dms ]);
+        uimenu(hcmenu, 'Label', [ 'Rotation= ' num2str(ret.rotation) ' [deg]' ]);
         set(h, 'UIContextMenu', hcmenu);
         
         for catalogs = {'stars','deep_sky_objects'}
@@ -510,7 +533,7 @@ classdef astrometry < handle
               uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
             end
             if isfinite(dist) && dist > 0
-              uimenu(hcmenu, 'Label', [ 'DIST= ' sprintf('%.3g', dist) ' [ly]' ]);
+              uimenu(hcmenu, 'Label', [ 'DIST= ' sprintf('%.3g', dist*3.262) ' [ly]' ]);
             end
             set(h, 'UIContextMenu', hcmenu);
             t=text(x+sz,y-sz,name); set(t,'Color', c);
@@ -883,4 +906,24 @@ function catalogs = getcatalogs
 
   loaded_catalogs = catalogs;
 end % getcatalogs
+
+% ------------------------------------------------------------------------------
+
+function ret=open_system_browser(url)
+  % opens URL with system browser. Returns non zero in case of error.
+  if strncmp(url, 'file://', length('file://'))
+    url = url(8:end);
+  end
+  ret = 1;
+  if ismac,      precmd = 'DYLD_LIBRARY_PATH= ;';
+  elseif isunix, precmd = 'LD_LIBRARY_PATH= ; '; 
+  else           precmd=''; end
+  if ispc
+    ret=system([ precmd 'start "' url '"']);
+  elseif ismac
+    ret=system([ precmd 'open "' url '"']);
+  else
+    [ret, message]=system([ precmd 'xdg-open "' url '"']);
+  end
+end % open_system_browser
 
