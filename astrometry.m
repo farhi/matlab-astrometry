@@ -440,13 +440,13 @@ classdef astrometry < handle
       fig = image(self);
     end % plot
     
-    function [fig, visible] = image(self)
+    function [fig] = image(self)
       % astrometry.image: show the solve-plate image with annotations
       %
       %   as=astrometry(file);
       %   image(as);
       
-      fig = []; visible = [];
+      fig = [];
       try
         im  = imread(self.filename);
       catch ME
@@ -456,7 +456,6 @@ classdef astrometry < handle
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
       image(im);
-      im_sz = size(im);
       clear im;
       
       ret = self.result;
@@ -474,7 +473,7 @@ classdef astrometry < handle
         
         hold on
         % central coordinates
-        sz = im_sz/2; % [ height width layers ]
+        sz = self.result.size/2;
         h  = plot(sz(2), sz(1), 'r+'); set(h, 'MarkerSize', 16);
         hcmenu = uicontextmenu;
         uimenu(hcmenu, 'Label', '<html><b>Field center</b></html>');
@@ -483,72 +482,41 @@ classdef astrometry < handle
         uimenu(hcmenu, 'Label', [ 'Rotation= ' num2str(ret.rotation) ' [deg]' ]);
         set(h, 'UIContextMenu', hcmenu);
         
-        for catalogs = {'stars','deep_sky_objects'}
+        % get list of visible objects
+        v = visible(self);
+        
+        for index=1:numel(v)
           % find all objects from data base within bounds
-          catalog = self.catalogs.(catalogs{1});
-          
-          found = find(...
-              ret.RA_min <= catalog.RA ...
-            &               catalog.RA  <= ret.RA_max ...
-            & ret.Dec_min<= catalog.DEC ...
-            &               catalog.DEC <= ret.Dec_max);
-          
-          for index=1:numel(found)
-            obj     = found(index);
-            ra      = catalog.RA(obj);
-            dec     = catalog.DEC(obj);
-            [x,y]   = self.sky2xy(ra, dec);
-            
-            % ignore when not on image
-            if x < 1 || x > im_sz(2) || y < 1 || y > im_sz(1), continue; end
-            this = [];
-            ra_hms  = getra(ra/15, 'string');
-            dec_dms = getdec(dec,  'string');
-            name    = catalog.NAME{obj};
-            typ     = catalog.TYPE{obj};
-            mag     = catalog.MAG(obj);
-            sz      = catalog.SIZE(obj); % arcmin
-            dist    = catalog.DIST(obj);
-            
-            this.RA = ra_hms;
-            this.DEC= dec_dms;
-            this.NAME=name;
-            this.TYPE=typ;
-            this.MAG =mag;
-            this.SIZE=sz;
-            this.DIST=dist;
-            if isempty(visible), visible = this;
-            else visible(end+1) = this; end
+          this = v(index);
 
-            % stars in green, DSO in cyan
-            if strcmp(catalogs{1},'stars'), c = 'g'; sz = 12;
-            else                            c = 'c'; 
-            end
-            
-            % plot symbol
-            if isfinite(sz) && sz > 5
-              h = plot(x,y, [ c 'o' ]); 
-              set(h, 'MarkerSize', ceil(sz));
-            else
-              h = plot(x,y, [ c 's' ]); sz=12;
-            end
-            
-            % context menu
-            hcmenu = uicontextmenu;            
-            uimenu(hcmenu, 'Label', [ 'RA=  ' ra_hms ]);
-            uimenu(hcmenu, 'Label', [ 'DEC= ' dec_dms ]);
-            uimenu(hcmenu, 'Label', [ '<html><b>' name '</html></b>' ], 'Separator','on');
-            uimenu(hcmenu, 'Label', [ 'TYPE: ' typ ]);
-            if isfinite(mag) && mag > 0
-              uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(mag)  ]);
-            end
-            if isfinite(dist) && dist > 0
-              uimenu(hcmenu, 'Label', [ 'DIST= ' sprintf('%.3g', dist*3.262) ' [ly]' ]);
-            end
-            set(h, 'UIContextMenu', hcmenu);
-            t=text(x+sz,y-sz,name); set(t,'Color', c);
-          end % object
-        end % catalogs
+          % stars in green, DSO in cyan
+          if strcmp(this.catalog,'stars'), c = 'g'; sz = 12;
+          else                             c = 'c'; 
+          end
+          x = this.X; y = this.Y;
+          
+          % plot symbol
+          if isfinite(this.SIZE) && this.SIZE > 5
+            h = plot(x,y, [ c 'o' ]); 
+            set(h, 'MarkerSize', ceil(this.SIZE));
+          else
+            h = plot(x,y, [ c 's' ]); this.SIZE=12;
+          end
+          
+          % context menu
+          hcmenu = uicontextmenu;            
+          uimenu(hcmenu, 'Label', [ 'RA=  ' this.RA ]);
+          uimenu(hcmenu, 'Label', [ 'DEC= ' this.DEC '</html></b>' ], 'Separator','on');
+          uimenu(hcmenu, 'Label', [ 'TYPE: ' this.TYPE ]);
+          if isfinite(this.MAG) && this.MAG > 0
+            uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(this.MAG)  ]);
+          end
+          if isfinite(this.DIST) && this.DIST > 0
+            uimenu(hcmenu, 'Label', [ 'DIST= ' sprintf('%.3g', this.DIST*3.262) ' [ly]' ]);
+          end
+          set(h, 'UIContextMenu', hcmenu);
+          t=text(x+this.SIZE,y-this.SIZE,this.NAME); set(t,'Color', c);
+        end % for
 
       end % success
       
@@ -595,7 +563,7 @@ classdef astrometry < handle
     end
     
     function found = findobj(self, name)
-      % findobj(sc, name): find a given object in catalogs. Select it.
+      % astrometry.findobj(name): find a given object in catalogs. 
       catalogs = fieldnames(self.catalogs);
       found = [];
       
@@ -647,6 +615,69 @@ classdef astrometry < handle
         disp([ mfilename ': object ' name ' was not found.' ])
       end
     end % findobj
+    
+    function v = visible(self)
+      % astrometry.visible: return/display all visible objects on image
+      v = [];
+
+      if ~isempty(self.result) && isfield(self.result, 'RA_hms')
+        
+        ret = self.result;
+        
+        if nargout == 0
+          disp(self.filename)
+          disp 'TYPE        MAG  RA            DEC               DIST  NAME'
+          disp '----------------------------------------------------------------'
+        end
+        
+        for catalogs = {'stars','deep_sky_objects'}
+          % find all objects from data base within bounds
+          catalog = self.catalogs.(catalogs{1});
+          
+          found = find(...
+              ret.RA_min <= catalog.RA ...
+            &               catalog.RA  <= ret.RA_max ...
+            & ret.Dec_min<= catalog.DEC ...
+            &               catalog.DEC <= ret.Dec_max);
+          
+          for index=1:numel(found)
+            obj     = found(index);
+            ra      = catalog.RA(obj);
+            dec     = catalog.DEC(obj);
+            [x,y]   = self.sky2xy(ra, dec);
+            
+            % ignore when not on image
+            if x < 1 || x > ret.size(2) || y < 1 || y > ret.size(1), continue; end
+            
+            this.RA = getra(ra/15, 'string');
+            this.DEC= getdec(dec,  'string');
+            this.NAME=catalog.NAME{obj};
+            this.TYPE=catalog.TYPE{obj};
+            this.MAG =catalog.MAG(obj);
+            this.SIZE=catalog.SIZE(obj); % arcmin
+            this.DIST=catalog.DIST(obj);
+            this.X   =x;
+            this.Y   =y;
+            this.catalog=catalogs{1};
+            this.RA_deg = ra;
+            this.DEC_deg= dec;
+            
+            if isempty(v), v = this;
+            else v(end+1) = this; end
+            
+            if nargout == 0
+              % display the list
+              fprintf(1, '%-8s  %5.1f  %-12s  %-12s  %8.2g  %s\n', ...
+                this.TYPE, this.MAG, this.RA, this.DEC, this.DIST*3.262, this.NAME);
+            end
+            
+          end % object
+          
+        end % catalogs
+        
+      end % success
+      
+    end % visible
     
   end % methods
   
