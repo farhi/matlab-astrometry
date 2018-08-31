@@ -440,13 +440,13 @@ classdef astrometry < handle
       fig = image(self);
     end % plot
     
-    function fig = image(self)
+    function [fig, visible] = image(self)
       % astrometry.image: show the solve-plate image with annotations
       %
       %   as=astrometry(file);
       %   image(as);
       
-      fig = [];
+      fig = []; visible = [];
       try
         im  = imread(self.filename);
       catch ME
@@ -501,7 +501,7 @@ classdef astrometry < handle
             
             % ignore when not on image
             if x < 1 || x > im_sz(2) || y < 1 || y > im_sz(1), continue; end
-            
+            this = [];
             ra_hms  = getra(ra/15, 'string');
             dec_dms = getdec(dec,  'string');
             name    = catalog.NAME{obj};
@@ -509,6 +509,16 @@ classdef astrometry < handle
             mag     = catalog.MAG(obj);
             sz      = catalog.SIZE(obj); % arcmin
             dist    = catalog.DIST(obj);
+            
+            this.RA = ra_hms;
+            this.DEC= dec_dms;
+            this.NAME=name;
+            this.TYPE=typ;
+            this.MAG =mag;
+            this.SIZE=sz;
+            this.DIST=dist;
+            if isempty(visible), visible = this;
+            else visible(end+1) = this; end
 
             % stars in green, DSO in cyan
             if strcmp(catalogs{1},'stars'), c = 'g'; sz = 12;
