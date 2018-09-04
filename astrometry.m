@@ -352,6 +352,7 @@ classdef astrometry < handle
         cmd = [ cmd ' --annotate=' fullfile(d, 'results.json') ];
         cmd = [ cmd ' --newfits='  fullfile(d, 'results.fits') ];
         cmd = [ cmd ' --kmz='      fullfile(d, 'results.kml') ];
+        cmd = [ cmd ' --corr='     fullfile(d, 'results.corr') ];
       else
         cmd = [ precmd self.executables.solve_field  ];
         cmd = [ cmd  ' '           filename ];
