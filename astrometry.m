@@ -627,8 +627,8 @@ classdef astrometry < handle
         
         if nargout == 0
           disp(self.filename)
-          disp 'TYPE        MAG  RA            DEC               DIST  NAME'
-          disp '----------------------------------------------------------------'
+          disp 'TYPE            MAG  RA              DEC                 DIST  NAME'
+          disp '----------------------------------------------------------------------'
         end
         
         for catalogs = {'stars','deep_sky_objects'}
@@ -648,7 +648,7 @@ classdef astrometry < handle
             [x,y]   = self.sky2xy(ra, dec);
             
             % ignore when not on image
-            if x < 1 || x > ret.size(2) || y < 1 || y > ret.size(1), continue; end
+            if x < 1 || x > ret.size(1) || y < 1 || y > ret.size(2), continue; end
             
             this.RA = getra(ra/15, 'string');
             this.DEC= getdec(dec,  'string');
@@ -668,7 +668,7 @@ classdef astrometry < handle
             
             if nargout == 0
               % display the list
-              fprintf(1, '%-8s  %5.1f  %-12s  %-12s  %8.2g  %s\n', ...
+              fprintf(1, '%-12s  %5.1f  %-14s  %-14s  %8.2g  %s\n', ...
                 this.TYPE, this.MAG, this.RA, this.DEC, this.DIST*3.262, this.NAME);
             end
             
