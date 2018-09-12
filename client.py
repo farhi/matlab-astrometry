@@ -285,6 +285,8 @@ if __name__ == '__main__':
     parser.add_option('--upload-xy', dest='upload_xy', help='Upload a FITS x,y table as JSON')
     parser.add_option('--wait', '-w', dest='wait', action='store_true', help='After submitting, monitor job status')
     parser.add_option('--wcs', dest='wcs', help='Download resulting wcs.fits file, saving to given filename; implies --wait if --urlupload or --upload')
+    parser.add_option('--corr', dest='corr', help='Download resulting corr.fits file, saving to given filename; implies --wait if --urlupload or --upload')
+    parser.add_option('--axy', dest='axy', help='Download resulting axy.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--newfits', dest='newfits', help='Download resulting new-image.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--kmz', dest='kmz', help='Download resulting kmz file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--annotate','-a',dest='annotate',help='store information about annotations in give file, JSON format; implies --wait if --urlupload or --upload')
@@ -353,7 +355,7 @@ if __name__ == '__main__':
     c.login(opt.apikey)
 
     if opt.upload or opt.upload_url or opt.upload_xy:
-        if opt.wcs or opt.kmz or opt.newfits or opt.annotate:
+        if opt.wcs or opt.kmz or opt.newfits or opt.annotate or opt.corr or opt.axy:
             opt.wait = True
 
         kwargs = dict(
@@ -435,6 +437,12 @@ if __name__ == '__main__':
             # We don't need the API for this, just construct URL
             url = opt.server.replace('/api/', '/wcs_file/%i' % opt.solved_id)
             retrieveurls.append((url, opt.wcs))
+        if opt.corr:
+            url = opt.server.replace('/api/', '/corr_file/%i' % opt.solved_id)
+            retrieveurls.append((url, opt.corr))
+        if opt.axy:
+            url = opt.server.replace('/api/', '/axy_file/%i' % opt.solved_id)
+            retrieveurls.append((url, opt.axy))
         if opt.kmz:
             url = opt.server.replace('/api/', '/kml_file/%i/' % opt.solved_id)
             retrieveurls.append((url, opt.kmz))
