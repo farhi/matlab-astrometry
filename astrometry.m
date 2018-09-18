@@ -579,6 +579,7 @@ classdef astrometry < handle
         catalog = self.catalogs.(f{1});
         if ~isfield(catalog, 'MAG'), continue; end
         NAME = lower(catalog.NAME);
+        NAME = regexprep(NAME, '\s*',' ');
         % search for name
         index = find(~cellfun(@isempty, strfind(NAME, [ ';' namel ';' ])));
         if isempty(index)
