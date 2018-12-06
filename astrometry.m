@@ -59,7 +59,7 @@ classdef astrometry < handle
   %    'hh:mm:ss'/'deg:mm:ss'. The 'as' astrometry object must have been used
   %    to solve or import astrometry data.
   %
-  %  f=astrometry.findobj('object name')
+  %  f = astrometry.findobj('object name')
   %    Return information about a named object (star, deep sky object) from the 
   %    data base. Example: astrometry.findobj('M33')
   %
@@ -448,6 +448,7 @@ classdef astrometry < handle
       %   image(as);
       
       fig = [];
+      if ~ischar(self.filename) || isempty(self.filename) || isempty(dir(self.filename)), return; end
       try
         im  = imread(self.filename);
       catch ME
@@ -680,6 +681,51 @@ classdef astrometry < handle
       end % success
       
     end % visible
+    
+    function disp(self)
+      % disp(s) : display Astrometry object (details)
+      
+      if ~isempty(inputname(1))
+        iname = inputname(1);
+      else
+        iname = 'ans';
+      end
+      if isdeployed || ~usejava('jvm') || ~usejava('desktop') || nargin > 2, id=class(self);
+      else id=[  '<a href="matlab:doc ' class(self) '">' class(self) '</a> ' ...
+                 '(<a href="matlab:methods ' class(self) '">methods</a>,' ...
+                 '<a href="matlab:image(' iname ');">plot</a>,' ...
+                 '<a href="matlab:visible(' iname ');">more...</a>)' ];
+      end
+      fprintf(1,'%s = %s for "%s":\n',iname, id, self.filename);
+      if ~isempty(self.result) && strcmp(self.status, 'success') && isfield(self.result, 'RA_hms')
+        if isfield(self.result, 'Constellation')
+          disp([ '  Constellation: ' self.result.Constellation ]);
+        end
+        disp([   '  RA:            ' self.result.RA_hms ]);
+        disp([   '  DEC:           ' self.result.Dec_dms ]);
+        disp([   '  Rotation:      ' num2str(self.result.rotation) ' [deg]' ]);
+      else
+        disp(    '  Empty (no plate solve)');
+      end
+    
+    end % disp
+    
+    function display(self)
+      % disp(s) : display Astrometry object (short)
+      
+      if ~isempty(inputname(1))
+        iname = inputname(1);
+      else
+        iname = 'ans';
+      end
+      if isdeployed || ~usejava('jvm') || ~usejava('desktop') || nargin > 2, id=class(self);
+      else id=[  '<a href="matlab:doc ' class(self) '">' class(self) '</a> ' ...
+                 '(<a href="matlab:methods ' class(self) '">methods</a>,' ...
+                 '<a href="matlab:image(' iname ');">plot</a>,' ...
+                 '<a href="matlab:disp(' iname ');">more...</a>)' ];
+      end
+      fprintf(1,'%s = %s for "%s"\n',iname, id, self.filename);
+    end % display
     
   end % methods
   
