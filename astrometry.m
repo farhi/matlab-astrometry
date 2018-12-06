@@ -507,8 +507,9 @@ classdef astrometry < handle
           
           % context menu
           hcmenu = uicontextmenu;            
-          uimenu(hcmenu, 'Label', [ 'RA=  ' this.RA ]);
-          uimenu(hcmenu, 'Label', [ 'DEC= ' this.DEC '</html></b>' ], 'Separator','on');
+          uimenu(hcmenu, 'Label', [ 'RA=  ' this.RA ' [' num2str(this.RA_deg) ' deg]' ]);
+          uimenu(hcmenu, 'Label', [ 'DEC= ' this.DEC ' [' num2str(this.DEC_deg) ' deg]' ]);
+          uimenu(hcmenu, 'Label', [ '<html><b>' this.NAME '</html></b>' ], 'Separator','on');
           uimenu(hcmenu, 'Label', [ 'TYPE: ' this.TYPE ]);
           if isfinite(this.MAG) && this.MAG > 0
             uimenu(hcmenu, 'Label', [ 'MAGNITUDE= ' num2str(this.MAG)  ]);
