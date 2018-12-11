@@ -712,7 +712,7 @@ classdef astrometry < handle
     end % disp
     
     function display(self)
-      % disp(s) : display Astrometry object (short)
+      % display(s) : display Astrometry object (short)
       
       if ~isempty(inputname(1))
         iname = inputname(1);
