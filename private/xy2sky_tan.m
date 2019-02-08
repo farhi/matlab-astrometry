@@ -49,7 +49,8 @@ else
 end
 
 if (CallGetWCS),
-    WCS = fits_get_wcs(FileName,'HDUnum',HDUnum);
+    error('Not implemented')
+    % WCS = fits_get_wcs(FileName,'HDUnum',HDUnum);
 end
 
 
