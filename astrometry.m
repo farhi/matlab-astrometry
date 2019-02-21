@@ -747,59 +747,65 @@ function ret = getresult(d, self)
   end
   
   ret = [];
-  if exist(fullfile(d, 'results.wcs'), 'file')
-    ret.wcs  = read_fits(fullfile(d, 'results.wcs'));
-    
-    % get image center and print it
-    if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
-      wcs = ret.wcs.meta;
-      ret.wcs.meta.CD = [ wcs.CD1_1 wcs.CD1_2 ; 
-                          wcs.CD2_1 wcs.CD2_2 ];
-                          
-      % get central coordinates
+  for file={'results.wcs','wcs.fits'}
+    if exist(fullfile(d, file{1}), 'file')
+      ret.wcs  = read_fits(fullfile(d, file{1}));
       
-      ret.size     = [ wcs.IMAGEW wcs.IMAGEH ];
-      sz  = ret.size/2;
+      % get image center and print it
+      if isfield(ret.wcs,'meta') && isfield(ret.wcs.meta,'CRVAL1')
+        wcs = ret.wcs.meta;
+        ret.wcs.meta.CD = [ wcs.CD1_1 wcs.CD1_2 ; 
+                            wcs.CD2_1 wcs.CD2_2 ];
+                            
+        % get central coordinates
+        
+        ret.size     = [ wcs.IMAGEW wcs.IMAGEH ];
+        sz  = ret.size/2;
 
-      [ret.RA, ret.Dec] = xy2sky_tan(ret.wcs.meta, sz(1), sz(2)); % MAAT Ofek (private)
-      ret.RA=ret.RA*180/pi; ret.Dec=ret.Dec*180/pi;
-      ret.RA_hms   = getra(ret.RA/15,   'string');
-      ret.Dec_dms  = getdec(ret.Dec, 'string');
-      
-      disp([ 'Field center:    RA =' ret.RA_hms  ' [h:min:s]    ; ' ...
-        num2str(ret.RA)  ' [deg]']);
-      disp([ '                 DEC=' ret.Dec_dms ' [deg:min:s]  ; ' ...
-        num2str(ret.Dec) ' [deg]' ]);
-      % compute pixel scale
-      ret.pixel_scale = sqrt(abs(wcs.CD1_1 * wcs.CD2_2  - wcs.CD1_2 * wcs.CD2_1))*3600; % in arcsec/pixel
-      disp([ 'Pixel scale:         ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
-      % compute rotation angle
-      ret.rotation = atan2(wcs.CD2_1, wcs.CD1_1)*180/pi;
-      disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
-                          
-      % compute RA,Dec image bounds
-      RA=[]; Dec=[];
-      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, wcs.IMAGEH);
-      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , wcs.IMAGEH);
-      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, 1);
-      [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , 1);
-      RA = RA*180/pi; Dec = Dec*180/pi;
-      ret.RA_min  = min(RA);
-      ret.RA_max  = max(RA);
-      ret.Dec_min = min(Dec);
-      ret.Dec_max = max(Dec);
-      
-      % identify constellation we are in
-      [m, index] = min( (ret.RA - self.catalogs.constellations.RA).^2 ...
-                      + (ret.Dec- self.catalogs.constellations.DEC).^2 );
-      ret.Constellation = self.catalogs.constellations.Name{index};
+        [ret.RA, ret.Dec] = xy2sky_tan(ret.wcs.meta, sz(1), sz(2)); % MAAT Ofek (private)
+        ret.RA=ret.RA*180/pi; ret.Dec=ret.Dec*180/pi;
+        ret.RA_hms   = getra(ret.RA/15,   'string');
+        ret.Dec_dms  = getdec(ret.Dec, 'string');
+        
+        disp([ 'Field center:    RA =' ret.RA_hms  ' [h:min:s]    ; ' ...
+          num2str(ret.RA)  ' [deg]']);
+        disp([ '                 DEC=' ret.Dec_dms ' [deg:min:s]  ; ' ...
+          num2str(ret.Dec) ' [deg]' ]);
+        % compute pixel scale
+        ret.pixel_scale = sqrt(abs(wcs.CD1_1 * wcs.CD2_2  - wcs.CD1_2 * wcs.CD2_1))*3600; % in arcsec/pixel
+        disp([ 'Pixel scale:         ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
+        % compute rotation angle
+        ret.rotation = atan2(wcs.CD2_1, wcs.CD1_1)*180/pi;
+        disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
+                            
+        % compute RA,Dec image bounds
+        RA=[]; Dec=[];
+        [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, wcs.IMAGEH);
+        [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , wcs.IMAGEH);
+        [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, wcs.IMAGEW, 1);
+        [RA(end+1), Dec(end+1)]     = xy2sky_tan(ret.wcs.meta, 1         , 1);
+        RA = RA*180/pi; Dec = Dec*180/pi;
+        ret.RA_min  = min(RA);
+        ret.RA_max  = max(RA);
+        ret.Dec_min = min(Dec);
+        ret.Dec_max = max(Dec);
+        
+        % identify constellation we are in
+        [m, index] = min( (ret.RA - self.catalogs.constellations.RA).^2 ...
+                        + (ret.Dec- self.catalogs.constellations.DEC).^2 );
+        ret.Constellation = self.catalogs.constellations.Name{index};
+      end
+    end
+  end % for
+  for file={'results.rdls','rdls.fits'}
+    if exist(fullfile(d, file{1}), 'file')
+      ret.rdls = read_fits(fullfile(d, file{1}));
     end
   end
-  if exist(fullfile(d, 'results.rdls'), 'file')
-    ret.rdls = read_fits(fullfile(d, 'results.rdls'));
-  end
-  if exist(fullfile(d, 'results.corr'), 'file')
-    ret.corr = read_fits(fullfile(d, 'results.corr'));
+  for file={'results.corr','corr.fits'}
+    if exist(fullfile(d, file{1}), 'file')
+      ret.corr = read_fits(fullfile(d, file{1}));
+    end
   end
   if exist(fullfile(d, 'results.json'), 'file')
     ret.json = loadjson(fullfile(d, 'results.json'));
