@@ -79,7 +79,10 @@ classdef astrometry < handle
   % Using results
   % ---------
   % Once an image has been solved with the 'as' object, you can use the astrometry results.
+  %
+  % The annotation is done asynchronously, and the Matlab prompt is recovered.
   % You may use getstatus(as) to inquire for the solve-plate status (running, success, failed).
+  % To wait for the end of the annotation, use waitfor(as).
   %
   % * as.result.RA and as.result.Dec provide the center coordinates of the 
   %   field (in [deg]), while as.result.RA_hms and as.result.Dec_dms provide the 
@@ -120,6 +123,7 @@ classdef astrometry < handle
   %   sky2sx(as, ra, dec)
   %   xy2sky(as, x, y)
   %   findobj(as, 'name')
+  %   waitfor(as)
   %
   % Installation:
   % -------------
