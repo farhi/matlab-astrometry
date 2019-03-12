@@ -21,7 +21,7 @@ classdef astrometry < handle
   %
   %  as = astrometry;
   %    Create a solver, but does not solve. 
-  %    Use annotation(as, file) or web(as, file) afterwards.
+  %    Use solve(as, file) or local(as, file) or web(as, file) afterwards.
   %
   %  as = astrometry(file, ...); image(as);
   %    Solve the given astrophotography image with local or web method. 
@@ -63,7 +63,7 @@ classdef astrometry < handle
   %    Return information about a named object (star, deep sky object) from the 
   %    data base. Example: astrometry.findobj('M33')
   %
-  %  as = astrometry.annotation(file, ...);
+  %  as = astrometry.local(file, ...);
   %    Explicitly use the local 'solve-field' astrometry.net installation.
   %    See above for the additional arguments.
   %
@@ -79,6 +79,7 @@ classdef astrometry < handle
   % Using results
   % ---------
   % Once an image has been solved with the 'as' object, you can use the astrometry results.
+  % You may use getstatus(as) to inquire for the solve-plate status (running, success, failed).
   %
   % * as.result.RA and as.result.Dec provide the center coordinates of the 
   %   field (in [deg]), while as.result.RA_hms and as.result.Dec_dms provide the 
@@ -114,7 +115,7 @@ classdef astrometry < handle
   %   as=astrometry(filename)
   %   image(as)
   %   load(astrometry, dir)
-  %   annotation(astrometry, filename, ...)
+  %   local(astrometry, filename, ...)
   %   web(astrometry, filename, ...)
   %   sky2sx(as, ra, dec)
   %   xy2sky(as, x, y)
@@ -157,23 +158,32 @@ classdef astrometry < handle
     api_key    = '';  % api-key for nova.astrometry.net
      % example: 'kvfubnepntofzpcl' 'ghqpqhztzychczjh'
      % from: https://git.kpi.fei.tuke.sk/TP/ExplorationOfInterstellarObjects/blob/master/src/sk/tuke/fei/kpi/tp/eoio/AstrometryAPI.java
-    executables= [];  % executables
+
     result     = [];
     filename   = [];
     status     = 'init';  % can be: running, failed, success
-    log        = '';
-    catalogs   = [];
-    
   end % properties
+  
+  properties (Access=private)
+    process_java = [];
+    process_dir  = [];
+    timer        = [];
+    
+  end % private properties
+  
+  properties (Constant=true)
+    catalogs     = getcatalogs;       % load catalogs
+    executables  = find_executables;  % search for executables
+  end % shared properties
   
   methods
   
     function self=astrometry(filename, varargin)
-      % astrometry: loads an image and identifies its objects using astrometry.net
+      % astrometry loads an image and identifies its objects using astrometry.net
       % 
       % as = astrometry;
       %   Create a solver, but does not solve. 
-      %   Use annotation(as, file) or web(as, file) afterwards
+      %   Use local(as, file) or web(as, file) afterwards
       % as = astrometry(file, ...);
       %   Solve the given astrophotography image with local or web method.
       %
@@ -188,8 +198,6 @@ classdef astrometry < handle
       % 
       % Example:
       %   as=astrometry('M33.jpg','scale-low', 0.5, 'scale-high',2);
-      self.executables = find_executables;
-      self.catalogs    = getcatalogs;
       
       if nargin
         % first try with the local plate solver
@@ -203,10 +211,10 @@ classdef astrometry < handle
       
     end % astrometry
     
-    function self = annotation(self, filename, varargin)
-      % astrometry.annotation: loads an image and identifies its objects using local solve-field
+    function self = local(self, filename, varargin)
+      % astrometry.local loads an image and identifies its objects using local solve-field
       %
-      % as = annotation(astrometry, file, ...);
+      % as = local(astrometry, file, ...);
       %   Solve the given astrophotography image with local method.
       %
       % input(optional):
@@ -219,12 +227,12 @@ classdef astrometry < handle
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
       % 
       % Example:
-      %   as=annotation(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
+      %   as=local(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
       [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
-    end % annotation
+    end % local (annotation)
     
     function self = web(self, filename, varargin)
-      % astrometry.web: loads an image and identifies its objects using web service
+      % astrometry.web loads an image and identifies its objects using web service
       %
       % as = web(astrometry, file, ...);
       %   Solve the given astrophotography image with web method.
@@ -261,7 +269,7 @@ classdef astrometry < handle
     end % web
     
     function [ret, filename] = solve(self, filename, method, varargin)
-      % astrometry.solve: solve an image field. Plot further results with image method.
+      % astrometry.solve solve an image field. Plot further results with image method.
       %
       %  solve(astrometry, filename, method, ...)
       %
@@ -286,6 +294,9 @@ classdef astrometry < handle
       
       if nargin < 3,      method = ''; end
       if isempty(method), method = 'solve-field'; end
+      
+      if ~isempty(self.process_java)    return; end           % already running
+      if strcmp(self.status, 'running') return; end
       
       isnova = strcmp(method, 'nova')           || strcmp(method, 'web') ...
             || strcmp(method, 'astrometry.net') || strcmp(method, 'client.py');
@@ -318,12 +329,12 @@ classdef astrometry < handle
       self.filename = filename;
       
       % build the command line
-      if ismac,      precmd = 'DYLD_LIBRARY_PATH= ;';
-      elseif isunix, precmd = 'LD_LIBRARY_PATH= ; '; 
-      else           precmd=''; end
-      
-      d = tempname;
-      if ~isdir(d), mkdir(d); end
+      if isempty(self.process_dir)
+        d = tempname;
+        if ~isdir(d), mkdir(d); end
+        self.process_dir = d;
+      else d=self.process_dir;
+      end
 
       if isnova
         % is there an API_KEY ? request it if missing...
@@ -344,7 +355,7 @@ classdef astrometry < handle
           self.api_key = answer{1};
         end
       
-        cmd = [ precmd self.executables.python ' ' self.executables.client_py ' --wait' ];
+        cmd = [ self.executables.python ' ' self.executables.client_py ' --wait' ];
         if ~isempty(self.api_key)
           cmd = [ cmd ' --apikey=' self.api_key ];
         end
@@ -354,7 +365,7 @@ classdef astrometry < handle
         cmd = [ cmd ' --kmz='      fullfile(d, 'results.kml') ];
         cmd = [ cmd ' --corr='     fullfile(d, 'results.corr') ];
       else
-        cmd = [ precmd self.executables.solve_field  ];
+        cmd = [ self.executables.solve_field  ];
         cmd = [ cmd  ' '           filename ];
         if ~isempty(self.executables.sextractor)
           % highly improves annotation efficiency
@@ -388,31 +399,32 @@ classdef astrometry < handle
       disp(cmd)
       t0 = clock;
       self.status   = 'running';
-      disp([ mfilename ': ' method ': please wait (may take e.g. few minutes)...' ])
-      [status, self.log] = system(cmd);
+      disp([ mfilename ': [' datestr(now) ']: ' method ': please wait (may take e.g. few minutes)...' ])
       
-      if status ~= 0
-        self.result = []; 
-        self.status = 'failed';
-      else
-        load(self, d);
+      % create the timer for auto update
+      if isempty(self.timer) || ~isa(self,timer, 'timer') || ~isvalid(self.timer)
+        self.timer  = timer('TimerFcn', @TimerCallback, ...
+          'Period', 5.0, 'ExecutionMode', 'fixedDelay', 'UserData', self, ...
+          'Name', mfilename);
       end
+      if strcmp(self.timer.Running, 'off') start(self.timer); end
+          
+      % launch a Java asynchronous command
+      self.process_java = java.lang.Runtime.getRuntime().exec(cmd);
       
-      if ~isempty(self.result)
-        self.result.duration= etime(clock, t0);
-      end
-      disp([ mfilename ': ' upper(self.status) ': plate solve for image ' filename ' using ' method ])
-      ret = self.result;
+      % we shall monitor the completion with a timer
     
     end % solve
     
     function ret = load(self, d)
-      % astrometry.load: load astrometry files (WCS,FITS) from a directory
+      % astrometry.load load astrometry files (WCS,FITS) from a directory
       %
       %   The directory may contain WCS, CORR, RDLS or JSON, and image.
       %   No solve plate is performed, only data is read.
       %
       % as = load(astrometry, directory);
+      if nargin < 2, d = self.process_dir; end
+      
       self.result = getresult(d, self);
       if isempty(self.result)
         self.status = 'failed';
@@ -433,8 +445,12 @@ classdef astrometry < handle
       
     end % load
     
+    function ret=getstatus(self)
+      ret=self.status;
+    end % getstatus
+    
     function fig = plot(self)
-      % astrometry.plot: show the solve-plate image with annotations. Same as image.
+      % astrometry.plot show the solve-plate image with annotations. Same as image.
       %
       %   as=astrometry(file);
       %   plot(as);
@@ -442,7 +458,7 @@ classdef astrometry < handle
     end % plot
     
     function [fig] = image(self)
-      % astrometry.image: show the solve-plate image with annotations
+      % astrometry.image show the solve-plate image with annotations
       %
       %   as=astrometry(file);
       %   image(as);
@@ -526,7 +542,7 @@ classdef astrometry < handle
     end % image
     
     function [x,y] = sky2xy(self, ra,dec)
-      % astrometry.sky2xy: convert RA,Dec coordinates to x,y pixels on image
+      % astrometry.sky2xy convert RA,Dec coordinates to x,y pixels on image
       %
       % input:
       %   ra,dec: RA and Dec [deg]
@@ -545,7 +561,7 @@ classdef astrometry < handle
     end
     
     function [ra,dec] = xy2sky(self, x,y, str)
-      % astrometry.xy2sky: convert pixel image coordinates to RA,Dec
+      % astrometry.xy2sky convert pixel image coordinates to RA,Dec
       %
       % input:
       %   x,y:    pixel coordinates
@@ -566,7 +582,7 @@ classdef astrometry < handle
     end
     
     function found = findobj(self, name)
-      % astrometry.findobj(name): find a given object in catalogs. 
+      % astrometry.findobj(name) find a given object in catalogs. 
       catalogs = fieldnames(self.catalogs);
       found = [];
       
@@ -621,7 +637,7 @@ classdef astrometry < handle
     end % findobj
     
     function v = visible(self)
-      % astrometry.visible: return/display all visible objects on image
+      % astrometry.visible return/display all visible objects on image
       v = [];
 
       if ~isempty(self.result) && isfield(self.result, 'RA_hms')
@@ -684,7 +700,7 @@ classdef astrometry < handle
     end % visible
     
     function disp(self)
-      % disp(s) : display Astrometry object (details)
+      % disp(s) display Astrometry object (details)
       
       if ~isempty(inputname(1))
         iname = inputname(1);
@@ -705,14 +721,19 @@ classdef astrometry < handle
         disp([   '  RA:            ' self.result.RA_hms ]);
         disp([   '  DEC:           ' self.result.Dec_dms ]);
         disp([   '  Rotation:      ' num2str(self.result.rotation) ' [deg]' ]);
+        if isdeployed || ~usejava('jvm') || ~usejava('desktop')
+          disp([ '  Results are in ' self.process_dir ]);
+        else
+          disp([ '  Results are in <a href="' self.process_dir '">' self.process_dir '</a>' ]);
+        end
       else
-        disp(    '  Empty (no plate solve)');
+        disp([ '  ' self.status ' in ' self.process_dir ]);
       end
     
     end % disp
     
     function display(self)
-      % display(s) : display Astrometry object (short)
+      % display(s) display Astrometry object (short)
       
       if ~isempty(inputname(1))
         iname = inputname(1);
@@ -725,8 +746,18 @@ classdef astrometry < handle
                  '<a href="matlab:image(' iname ');">plot</a>,' ...
                  '<a href="matlab:disp(' iname ');">more...</a>)' ];
       end
-      fprintf(1,'%s = %s for "%s"\n',iname, id, self.filename);
+      if strcmp(self.status, 'running')
+        fprintf(1,'%s = %s for "%s" RUNNING\n',iname, id, self.filename);
+      else fprintf(1,'%s = %s for "%s"\n',iname, id, self.filename);
+      end
     end % display
+    
+    function waitfor(self)
+      % waitfor waits for completion of the annotation
+      while strcmp(self.status, 'running')
+        pause(5);
+      end
+    end % waitfor
     
   end % methods
   
@@ -1024,4 +1055,50 @@ function ret=open_system_browser(url)
     [ret, message]=system([ precmd 'xdg-open "' url '"']);
   end
 end % open_system_browser
+
+% ------------------------------------------------------------------------------
+
+function TimerCallback(src, evnt)
+  % TimerCallback: update status/view from timer event
+  self = get(src, 'UserData');
+  if isvalid(self)
+    try
+      % check if any astrometry job is running
+      exitValue = 0;
+      if ~isempty(self.process_java) && isjava(self.process_java)
+        try
+          exitValue = self.process_java.exitValue; % will raise error if process still runs
+          active  = 0;
+        catch ME
+          % still running
+          if isempty(self.process_java) || ~isjava(self.process_java)
+            active  = 0;
+          else
+            active  = 1;
+          end
+        end
+        % not active anymore: process has ended.
+        if ~active
+          disp([ mfilename ': [' datestr(now) ']: annotation ended. exit value=' num2str(exitValue) ]);
+
+          if exitValue ~= 0
+            self.result = []; 
+            self.status = 'failed';
+          else
+            load(self);
+            disp([ mfilename ': results in ' self.process_dir ])
+            self.process_java = [];
+            self.status = 'success';
+          end
+          % clear the timer
+          stop(src); delete(src); self.timer=[];
+        end
+      end
+    catch ME
+      getReport(ME)
+    end
+    
+  else delete(src); end
+  
+end % TimerCallback
 
