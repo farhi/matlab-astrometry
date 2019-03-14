@@ -711,7 +711,7 @@ classdef astrometry < handle
       else
         iname = 'ans';
       end
-      if isdeployed || ~usejava('jvm') || ~usejava('desktop') || nargin > 2, id=class(self);
+      if isdeployed || ~usejava('jvm') || ~usejava('desktop'), id=class(self);
       else id=[  '<a href="matlab:doc ' class(self) '">' class(self) '</a> ' ...
                  '(<a href="matlab:methods ' class(self) '">methods</a>,' ...
                  '<a href="matlab:image(' iname ');">plot</a>,' ...
@@ -731,7 +731,7 @@ classdef astrometry < handle
           disp([ '  Results are in <a href="' self.process_dir '">' self.process_dir '</a>' ]);
         end
       else
-        disp([ '  ' self.status ' in ' self.process_dir ]);
+        disp([ '  ' upper(self.status) ' in ' self.process_dir ]);
       end
     
     end % disp
@@ -744,14 +744,14 @@ classdef astrometry < handle
       else
         iname = 'ans';
       end
-      if isdeployed || ~usejava('jvm') || ~usejava('desktop') || nargin > 2, id=class(self);
+      if isdeployed || ~usejava('jvm') || ~usejava('desktop'), id=class(self);
       else id=[  '<a href="matlab:doc ' class(self) '">' class(self) '</a> ' ...
                  '(<a href="matlab:methods ' class(self) '">methods</a>,' ...
                  '<a href="matlab:image(' iname ');">plot</a>,' ...
                  '<a href="matlab:disp(' iname ');">more...</a>)' ];
       end
       if strcmp(self.status, 'running')
-        fprintf(1,'%s = %s for "%s" RUNNING\n',iname, id, self.filename);
+        fprintf(1,'%s = %s for "%s" BUSY\n',iname, id, self.filename);
       else fprintf(1,'%s = %s for "%s"\n',iname, id, self.filename);
       end
     end % display
