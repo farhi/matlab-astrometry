@@ -1093,6 +1093,7 @@ function TimerCallback(src, evnt)
             self.status = 'success';
           end
           notify(self, 'annotationEnd');
+          beep;
           % clear the timer
           stop(src); delete(src); self.timer=[];
         end
