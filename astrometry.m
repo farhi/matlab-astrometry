@@ -37,6 +37,11 @@ classdef astrometry < handle
   %  These two syntaxes will try first any local astrometry.net installation, and
   %  if failed, the http://nova.astrometry.net/ service.
   %
+  %  When the annotation has ended, an 'annotationEnd' event is triggered. You
+  %  may monitor this with e.g.:
+  %    as = astrometry('examples/M13-2018-05-19.jpg');
+  %    addlistener(as, 'annotationEnd', @(src,evt)disp('annotation just end'))
+  %
   % Going further
   % -------------
   %
@@ -77,7 +82,7 @@ classdef astrometry < handle
   %    to solve or import astrometry data.
   %
   % Using results
-  % ---------
+  % -------------
   % Once an image has been solved with the 'as' object, you can use the astrometry results.
   %
   % The annotation is done asynchronously, and the Matlab prompt is recovered.
@@ -179,6 +184,10 @@ classdef astrometry < handle
     catalogs     = getcatalogs;       % load catalogs
     executables  = find_executables;  % search for executables
   end % shared properties
+  
+  events
+    annotationEnd
+  end
   
   methods
   
@@ -1073,7 +1082,7 @@ function TimerCallback(src, evnt)
         end
         % not active anymore: process has ended.
         if ~active
-          disp([ mfilename ': [' datestr(now) ']: annotation ended. exit value=' num2str(exitValue) ]);
+          disp([ mfilename ': [' datestr(now) ']: annotation end. exit value=' num2str(exitValue) ]);
 
           if exitValue ~= 0
             self.result = []; 
@@ -1083,6 +1092,7 @@ function TimerCallback(src, evnt)
             self.process_java = [];
             self.status = 'success';
           end
+          notify(self, 'annotationEnd');
           % clear the timer
           stop(src); delete(src); self.timer=[];
         end
