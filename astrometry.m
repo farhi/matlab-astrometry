@@ -722,9 +722,12 @@ classdef astrometry < handle
         if isfield(self.result, 'Constellation')
           disp([ '  Constellation: ' self.result.Constellation ]);
         end
-        disp([   '  RA:            ' self.result.RA_hms ]);
-        disp([   '  DEC:           ' self.result.Dec_dms ]);
-        disp([   '  Rotation:      ' num2str(self.result.rotation) ' [deg]' ]);
+        disp([   '  RA:            ' self.result.RA_hms  ' [h:min:s]; ' ...
+          num2str(self.result.RA)  ' [deg]']);
+        disp([   '  DEC:           ' self.result.Dec_dms ' [deg:min:s]; ' ...
+          num2str(self.result.Dec) ' [deg]' ]);
+        disp([   '  Rotation:      ' num2str(self.result.rotation) ' [deg] (to get sky view)' ]);
+        disp([   '  Pixel scale:   ' num2str(self.result.pixel_scale) ' [arcsec/pixel]' ]);
         if isdeployed || ~usejava('jvm') || ~usejava('desktop')
           disp([ '  Results are in ' self.process_dir ]);
         else
@@ -775,12 +778,6 @@ function ret = getresult(d, self)
   % input:
   %   d: directory where astrometry.net results are stored.
   
-  if isdeployed || ~usejava('jvm') || ~usejava('desktop')
-    disp([ '  Results are in: ' d ]);
-  else
-    disp([ '  Results are in: <a href="' d '">' d '</a>' ]);
-  end
-  
   ret = [];
   for file={'results.wcs','wcs.fits'}
     if exist(fullfile(d, file{1}), 'file')
@@ -801,17 +798,10 @@ function ret = getresult(d, self)
         ret.RA=ret.RA*180/pi; ret.Dec=ret.Dec*180/pi;
         ret.RA_hms   = getra(ret.RA/15,   'string');
         ret.Dec_dms  = getdec(ret.Dec, 'string');
-        
-        disp([ 'Field center:    RA =' ret.RA_hms  ' [h:min:s]    ; ' ...
-          num2str(ret.RA)  ' [deg]']);
-        disp([ '                 DEC=' ret.Dec_dms ' [deg:min:s]  ; ' ...
-          num2str(ret.Dec) ' [deg]' ]);
         % compute pixel scale
         ret.pixel_scale = sqrt(abs(wcs.CD1_1 * wcs.CD2_2  - wcs.CD1_2 * wcs.CD2_1))*3600; % in arcsec/pixel
-        disp([ 'Pixel scale:         ' num2str(ret.pixel_scale) ' [arcsec/pixel]' ]);
         % compute rotation angle
         ret.rotation = atan2(wcs.CD2_1, wcs.CD1_1)*180/pi;
-        disp([ 'Field rotation:      ' num2str(ret.rotation) ' [deg] (to get sky view)' ]);
                             
         % compute RA,Dec image bounds
         RA=[]; Dec=[];
@@ -1090,7 +1080,6 @@ function TimerCallback(src, evnt)
             self.status = 'failed';
           else
             load(self);
-            disp([ mfilename ': results in ' self.process_dir ])
             self.process_java = [];
             self.status = 'success';
           end
