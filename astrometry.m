@@ -186,7 +186,10 @@ classdef astrometry < handle
   end % shared properties
   
   events
+    annotationStart
     annotationEnd
+    idle
+    busy
   end
   
   methods
@@ -412,6 +415,7 @@ classdef astrometry < handle
       disp(cmd)
       t0 = clock;
       self.status   = 'running';
+      notify(self, 'busy');
       disp([ mfilename ': [' datestr(now) ']: ' method ': please wait (may take e.g. few minutes)...' ])
       
       % create the timer for auto update
@@ -426,7 +430,7 @@ classdef astrometry < handle
       self.process_java = java.lang.Runtime.getRuntime().exec(cmd);
       
       % we shall monitor the completion with a timer
-    
+      notify(self, 'annotationStart');
     end % solve
     
     function ret = load(self, d)
@@ -1093,6 +1097,7 @@ function TimerCallback(src, evnt)
             self.status = 'success';
           end
           notify(self, 'annotationEnd');
+          notify(self, 'idle');
           beep;
           % clear the timer
           stop(src); delete(src); self.timer=[];
