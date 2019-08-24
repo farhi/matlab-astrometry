@@ -17,6 +17,7 @@ Table of Contents
 - [Improving the plate-solve efficiency](#improving-efficiency)
 - [Examples](#examples)
 - [Methods](#methods)
+- [Installation](#installation)
 - [Credits](#credits)
  
 Syntax/Usage <a id=syntax-usage></a>
@@ -190,4 +191,4 @@ Credits <a id=credits></a>
  
 **sky2xy** and **xy2sky** from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
  
-  (c) E. Farhi, 2018. GPL2.
+(c) E. Farhi, 2019. GPL2.
