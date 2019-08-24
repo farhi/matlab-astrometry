@@ -169,19 +169,18 @@ classdef astrometry < handle
      % from: https://git.kpi.fei.tuke.sk/TP/ExplorationOfInterstellarObjects/blob/master/src/sk/tuke/fei/kpi/tp/eoio/AstrometryAPI.java
 
     result     = [];
-    filename   = [];
+    filename   = '';
     status     = 'init';  % can be: running, failed, success
+    catalogs   = [];
   end % properties
   
   properties (Access=private)
     process_java = [];
     process_dir  = [];
     timer        = [];
-    
   end % private properties
   
   properties (Constant=true)
-    catalogs     = getcatalogs;       % load catalogs
     executables  = find_executables;  % search for executables
   end % shared properties
   
@@ -215,11 +214,26 @@ classdef astrometry < handle
       % Example:
       %   as=astrometry('M33.jpg','scale-low', 0.5, 'scale-high',2);
       
+      % handle input arguments
+      removeme = [];
+      for index=1:2:numel(varargin)
+        if ischar(varargin{index})
+          switch varargin{index}
+          case 'catalogs'
+            self.catalogs = varargin{index+1};
+            removeme = [ index index+1 ];
+          end
+        end
+      end
+      if isempty(self.catalogs)
+        self.catalogs = getcatalogs;
+      end
+      
       if nargin
         % first try with the local plate solver
         [self.result, filename]      = self.solve(filename, 'solve-field', varargin{:});
         % if fails or not installed, use the web service
-        if isempty(self.result)
+        if isempty(self.result) && ~isempty(filename)
           self.solve(filename, 'web', varargin{:});
         end
         % image(self);
@@ -339,8 +353,14 @@ classdef astrometry < handle
            '*.FITS;*.fits;*.FTS;*.fts','FITS image (FITS)';
            '*.*',  'All Files (*.*)'}, ...
            [ mfilename ': Pick an astrophotography image to solve' ]);
-        if isequal(filename,0), return; end
+        if isequal(filename,0), filename = ''; return; end
         filename = fullfile(pathname, filename);
+      end
+      if ~ischar(filename), filename = ''; return;
+      elseif isempty(dir(filename))
+        disp([ mfilename ': ERROR: invalid file name "' filename '"' ]);
+        filename = []; 
+        return
       end
       self.filename = filename;
       
@@ -749,8 +769,14 @@ classdef astrometry < handle
         builtin('disp',self)
         disp([ iname '.result:' ])
         disp(self.result);
+      elseif isdir(self.process_dir)
+        if isdeployed || ~usejava('jvm') || ~usejava('desktop')
+          disp([ '  ' upper(self.status) ' in ' self.process_dir ]);
+        else
+          disp([ '  ' upper(self.status) ' in <a href="' self.process_dir '">' self.process_dir '</a>' ]);
+        end
       else
-        disp([ '  ' upper(self.status) ' in ' self.process_dir ]);
+        disp([ '  ' upper(self.status) ': use annotate(as,''filename'').' ]);
       end
     
     end % disp
