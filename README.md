@@ -1,5 +1,6 @@
 # matlab-astrometry
   astrometry: A Matlab class to annotate astrophotography images (identify objects/astrometry)
+  Version: 19.08. Download at https://github.com/farhi/matlab-astrometry.
   
   ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M13-solved.jpg?raw=true)
  
