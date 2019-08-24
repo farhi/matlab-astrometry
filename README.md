@@ -136,7 +136,7 @@ Examples <a id=examples></a>
 ```
 
   You will then get, in about 30 sec, the image:
-  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M33-solved.ppg?raw=true)
+  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M33-solved.png)
 
 Methods <a id=methods></a>
 =======
