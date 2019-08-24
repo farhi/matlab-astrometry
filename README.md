@@ -132,11 +132,11 @@ Examples <a id=examples></a>
  
 ```matlab
   as=astrometry('examples/M33-2018-08-15.jpg','scale-low', 0.5, 'scale-high',2);
-  image(as);
+  image(as); % once done
 ```
 
   You will then get, in about 30 sec, the image:
-  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M33-solved.jpg?raw=true)
+  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M33-solved.ppg?raw=true)
 
 Methods <a id=methods></a>
 =======
