@@ -509,7 +509,7 @@ classdef astrometry < handle
         hold on
         % central coordinates
         sz = self.result.size/2;
-        h  = plot(sz(2), sz(1), 'r+'); set(h, 'MarkerSize', 16);
+        h  = plot(sz(1), sz(2), 'r+'); set(h, 'MarkerSize', 16);
         hcmenu = uicontextmenu;
         uimenu(hcmenu, 'Label', '<html><b>Field center</b></html>');
         uimenu(hcmenu, 'Label', [ 'RA=  ' ret.RA_hms ]);
@@ -746,6 +746,9 @@ classdef astrometry < handle
         else
           disp([ '  Results are in <a href="' self.process_dir '">' self.process_dir '</a>' ]);
         end
+        builtin('disp',self)
+        disp([ iname '.result:' ])
+        disp(self.result);
       else
         disp([ '  ' upper(self.status) ' in ' self.process_dir ]);
       end
