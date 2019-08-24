@@ -4,14 +4,23 @@
   ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M13-solved.jpg?raw=true)
  
 Purpose
--------
+=======
  
 This Matlab class allows to use the astrometry.net software, either installed 
 locally, or through internet connection, in order to solve (annotate) 
 astrophotography images.
+
+Table of Contents
+- [Syntax/Usage](#syntax-usage)
+- [Going further](#going-further)
+- [Using results](#using-results)
+- [Improving the plate-solve efficiency](#improving-efficiency)
+- [Examples](#examples)
+- [Methods](#methods)
+- [Credits](#credits)
  
-Syntax/Usage
-------------
+Syntax/Usage <a id=syntax-usage></a>
+============
  
 First navigate to the matlab-astrometry directory or type:
  
@@ -48,8 +57,8 @@ stars, cyan circle for extended deep sky objects, and cyan squares for localized
 deep sky objects. Each indicated object has a contextual menu which gives more 
 information (right click). The central coordinate of the field is shown in red.
  
-Going further
--------------
+Going further <a id=going-further></a>
+=============
  
    **as = astrometry.load(dir); image(as);**
    
@@ -90,63 +99,64 @@ Explicitly use the http://nova.astrometry.net/ web service.
 See above for the additional arguments.
 
 
-Using results
----------
+Using results <a id=using-results></a>
+=============
 Once an image has been solved with the 'as' object, you can use the astrometry results.
 
-* **as.result.RA** and **as.result.Dec** provide the center coordinates of the 
+- **as.result.RA** and **as.result.Dec** provide the center coordinates of the 
   field (in [deg]), while **as.result.RA_hms** and **as.result.Dec_dms** provide the 
   'HH:MM:SS' and 'Deg:MM:SS' coordinates. 
-* The field rotation wrt sky is stored in **as.result.rotation**. 
-* The pixel scale is given in [arcmin/pixel] as **as.result.pixel_scale**. 
-* The field extension is given with its bounds as **as.result.RA_min**, **as.result.RA_max**,
+- The field rotation wrt sky is stored in **as.result.rotation**. 
+- The pixel scale is given in [arcmin/pixel] as **as.result.pixel_scale**. 
+- The field extension is given with its bounds as **as.result.RA_min**, **as.result.RA_max**,
   **as.result.Dec_min**, and **as.result.Dec_min**. 
-* The constellation name is stored in **as.result.Constellation**.
+- The constellation name is stored in **as.result.Constellation**.
  
-Improving the plate-solve efficiency
-------------------------------------
+Improving the plate-solve efficiency <a id=improving-efficiency></a>
+====================================
  
 To facilitate the plate-solve/annotation of images, you may:
  
-* specify the field size with additional arguments such as: 
-  astrometry(..., 'scale-low', 0.5, 'scale-high',2)
+- specify the field size with additional arguments such as: 
+  `astrometry(..., 'scale-low', 0.5, 'scale-high',2)`
 
-* provide an initial guess for the location, and its range, such as:
-  astrometry('examples/M33-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
+- provide an initial guess for the location, and its range, such as:
+  `astrometry('examples/M33-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)`
 
-* add more star data bases (e.g. 2MASS over Tycho2).
+- add more star data bases (e.g. 2MASS over Tycho2).
  
-Examples
---------
+Examples <a id=examples></a>
+========
  
 ```matlab
-   as=astrometry('examples/M33-2018-08-15.jpg','scale-low', 0.5, 'scale-high',2);
-   image(as);
+  as=astrometry('examples/M33-2018-08-15.jpg','scale-low', 0.5, 'scale-high',2);
+  image(as);
 ```
 
-  You will then get, in about 30 sec, 
+  You will then get, in about 30 sec, the image:
+  ![Image of Astrometry](https://github.com/farhi/matlab-astrometry/blob/master/examples/M33-solved.jpg?raw=true)
 
-Methods
--------
+Methods <a id=methods></a>
+=======
    
-    - as=astrometry(filename)
-    - image(as)
-    - load(astrometry, dir)
-    - annotation(astrometry, filename, ...)
-    - web(astrometry, filename, ...)
-    - sky2sx(as, ra, dec)
-    - xy2sky(as, x, y)
-    - findobj(as, 'name')
+- as=astrometry(filename)
+- image(as)
+- load(as, dir)
+- solve(as, filename, ...)
+- web(as, filename, ...)
+- sky2sx(as, ra, dec)
+- xy2sky(as, x, y)
+- findobj(as, 'name')
  
-Installation
-------------
+Installation <a id=installation></a>
+============
  
    **Local installation (recommended)**
  
 On Linux systems, install the 'astrometry.net' package, as well as the 'tycho2' data base. On Debian-class systems, this is achieved with:
      
 ```bash
-        sudo apt install astrometry.net astrometry-data-tycho2 sextractor
+  sudo apt install astrometry.net astrometry-data-tycho2 sextractor
 ```
 
 On other systems, you will most probably need to compile it.
@@ -162,21 +172,21 @@ degree), you will most probably need to install the '2MASS' data base.
  Enter the API_KEY when prompt, or set it with:
  
  ```matlab
-     as = astrometry;
-     as.api_key = 'blah-blah';
-     as.web(file, ...)
+  as = astrometry;
+  as.api_key = 'blah-blah';
+  as.web(file, ...)
  ```
  
    **Matlab files**
    
 First navigate to the matlab-astrometry directory or type:
  
-   ```matlab
-   addpath /path/to/matlab-astrometry
-   ```
+```matlab
+  addpath /path/to/matlab-astrometry
+```
  
-  Credit
-  ------
+Credits <a id=credits></a>
+=======
  
 **sky2xy** and **xy2sky** from E. Ofek http://weizmann.ac.il/home/eofek/matlab/
  
