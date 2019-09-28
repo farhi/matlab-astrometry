@@ -357,6 +357,9 @@ classdef astrometry < handle
         filename = fullfile(pathname, filename);
       end
       if ~ischar(filename), filename = ''; return;
+      elseif any(strcmpi(filename,{'/dev/null','null','none'}))
+        filename = []; 
+        return
       elseif isempty(dir(filename))
         disp([ mfilename ': ERROR: invalid file name "' filename '"' ]);
         filename = []; 
@@ -365,12 +368,16 @@ classdef astrometry < handle
       self.filename = filename;
       
       % build the command line
-      if isempty(self.process_dir)
-        d = tempname;
-        if ~isdir(d), mkdir(d); end
-        self.process_dir = d;
-      else d=self.process_dir;
+      if isempty(self.process_dir) % first call
+        self.process_dir = tempname;
+      elseif ~isempty(dir(self.process_dir))
+        % clean any previous annotation
+        rmdir(self.process_dir, 's');
       end
+      if ~isdir(self.process_dir)
+        mkdir(self.process_dir);
+      end
+      d=self.process_dir;
 
       if isnova
         % is there an API_KEY ? request it if missing...
@@ -451,6 +458,7 @@ classdef astrometry < handle
       
       % we shall monitor the completion with a timer
       notify(self, 'annotationStart');
+      ret = cmd;
     end % solve
     
     function ret = load(self, d)
@@ -465,6 +473,7 @@ classdef astrometry < handle
       self.result = getresult(d, self);
       if isempty(self.result)
         self.status = 'failed';
+        self.process_java = [];
       else
         self.status = 'success';
         % is the image available ? use one from the directory
@@ -808,6 +817,24 @@ classdef astrometry < handle
       end
     end % waitfor
     
+    function stop(self)
+    % STOP ends any current annotation and reset the object.
+      % clear the timer
+      if ~isempty(self.timer) && isa(self.timer,'timer')
+        stop(self.timer); delete(self.timer); 
+      end
+      self.timer=[];
+      p = self.process_java;
+      if ~isempty(p) && isjava(p)
+        try
+          p.destroy;
+          disp([ mfilename ': abort current annotation...' ])
+        end
+      end
+      self.process_java = [];
+      self.status = 'failed';
+    end % stop
+    
   end % methods
   
 end % astrometry
@@ -1115,21 +1142,22 @@ function TimerCallback(src, evnt)
         end
         % not active anymore: process has ended.
         if ~active
-          disp([ mfilename ': [' datestr(now) ']: annotation end. exit value=' num2str(exitValue) ]);
-
           if exitValue ~= 0
             self.result = []; 
             self.status = 'failed';
           else
             load(self);
-            self.process_java = [];
-            self.status = 'success';
+            if ~isempty(self.result) self.status = 'success';
+            else self.status = 'failed'; end
           end
+          disp([ mfilename ': [' datestr(now) ']: annotation end: ' upper(self.status) '. exit value=' num2str(exitValue) ]);
+          % clear the timer
+          stop(src); delete(src); self.timer=[];
+          self.process_java = [];
+          
           notify(self, 'annotationEnd');
           notify(self, 'idle');
           beep;
-          % clear the timer
-          stop(src); delete(src); self.timer=[];
         end
       end
     catch ME
