@@ -172,6 +172,7 @@ classdef astrometry < handle
     filename   = '';
     status     = 'init';  % can be: running, failed, success
     catalogs   = [];
+    vargin     = [];
   end % properties
   
   properties (Access=private)
@@ -225,6 +226,12 @@ classdef astrometry < handle
           end
         end
       end
+      if ~isempty(removeme)
+        varargin(removeme) = [];
+      end
+      if ~isempty(varargin)
+        vargin = varargin;
+      end
       if isempty(self.catalogs)
         self.catalogs = getcatalogs;
       end
@@ -258,6 +265,7 @@ classdef astrometry < handle
       % 
       % Example:
       %   as=local(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
+      if isempty(varargin) && ~isempty(vargin), varargin = vargin; end
       [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
     end % local (annotation)
     
@@ -294,6 +302,7 @@ classdef astrometry < handle
           % open in system browser
           open_system_browser(url);
       else
+        if isempty(varargin) && ~isempty(vargin), varargin = vargin; end
         [ret, filename] = solve(self, filename, 'web', varargin{:});
       end
     end % web
@@ -837,7 +846,7 @@ classdef astrometry < handle
     
   end % methods
   
-end % astrometry
+end % astrometry class
 
 % ------------------------------------------------------------------------------
 
