@@ -233,7 +233,7 @@ classdef astrometry < handle
         varargin(removeme) = [];
       end
       if ~isempty(varargin)
-        vargin = varargin;
+        self.vargin = varargin;
       end
       if isempty(self.catalogs)
         self.catalogs = getcatalogs;
@@ -268,7 +268,7 @@ classdef astrometry < handle
       % 
       % Example:
       %   as=local(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
-      if isempty(varargin) && ~isempty(vargin), varargin = vargin; end
+      if isempty(varargin) && ~isempty(self.vargin), varargin = self.vargin; end
       [ret, filename] = solve(self, filename, 'solve-field', varargin{:});
     end % local (annotation)
     
@@ -305,7 +305,7 @@ classdef astrometry < handle
           % open in system browser
           open_system_browser(url);
       else
-        if isempty(varargin) && ~isempty(vargin), varargin = vargin; end
+        if isempty(varargin) && ~isempty(self.vargin), varargin = self.vargin; end
         [ret, filename] = solve(self, filename, 'web', varargin{:});
       end
     end % web
@@ -855,6 +855,16 @@ classdef astrometry < handle
       self.process_java = [];
       self.status = 'failed';
     end % stop
+    
+    function c = get_catalogs(self)
+      % GET_CATALOGS Get the loaded catalogs
+      c = self.catalogs;
+    end
+    
+    function st = get_state(self)
+      % GET_STATE Return the astrometry state, e.g. BUSY, FAILED, SUCCESS.
+      st = self.status;
+    end
     
   end % methods
   
