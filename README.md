@@ -62,7 +62,7 @@ information (right click). The central coordinate of the field is shown in red.
 Going further <a id=going-further></a>
 =============
  
-   **as = astrometry.load(dir); image(as);**
+   **as = LOAD(as, dir); IMAGE(as);**
    
 Read an existing Astrometry.net set of files stored in a given directory.
 The directory may contain WCS, CORR, RDLS, JSON, and image.
@@ -70,32 +70,32 @@ Then plot the result. This allows to get previous data files, or obtained
 externally, and label them. The 'as' astrometry object must have been used
 to solve or import astrometry data.
  
-   **[x,y] = sky2xy(as, ra, dec)**
+   **[x,y] = SKY2XY(as, ra, dec)**
    
 Convert a RA/DEC set of coordinates (in [deg] or 'hh:mm:ss'/'deg::mm:ss')
 into pixel coordinates on the image. The 'as' astrometry object must have 
 been used to solve or import astrometry data.
  
-   **[ra, dec] = xy2sky(as, x,y)**
+   **[ra, dec] = XY2SKY(as, x,y)**
    
-   **[ra, dec] = xy2sky(as, x,y, 'string')**
+   **[ra, dec] = XY2SKY(as, x,y, 'string')**
    
 Convert pixel coordinates on the image into a RA/DEC set of coordinates 
 (in [deg]). When given a 'string' argument, the result is given in 
 'hh:mm:ss'/'deg:mm:ss'. The 'as' astrometry object must have been used
 to solve or import astrometry data.
  
-   **f=astrometry.findobj('object name')**
+   **f = FINDOBJ(as,'object name')**
    
 Return information about a named object (star, deep sky object) from the 
 data base. Example: astrometry.findobj('M33')
  
-   **as = astrometry.annotation(file, ...);**
+   **OCAL(as, file, ...);**
    
 Explicitly use the local 'solve-field' astrometry.net installation.
 See above for the additional arguments.
  
-   **as = astrometry.web(file, ...);**
+   **WEB(as, file, ...);**
    
 Explicitly use the http://nova.astrometry.net/ web service.
 See above for the additional arguments.
@@ -141,14 +141,19 @@ Examples <a id=examples></a>
 Methods <a id=methods></a>
 =======
    
-- as=astrometry(filename)
-- image(as)
-- load(as, dir)
-- solve(as, filename, ...)
-- web(as, filename, ...)
-- sky2sx(as, ra, dec)
-- xy2sky(as, x, y)
-- findobj(as, 'name')
+- findobj   find a given object in catalogs.    
+- getstatus return the astrometry status (success, failed)
+- image     show the solve-plate image with annotations
+- load      load astrometry files (WCS,FITS) from a directory   
+- local     loads an image and identifies its objects using local solve-field  
+- plot      show the solve-plate image with annotations. Same as image.   
+- sky2xy    convert RA,Dec coordinates to x,y pixels on image   
+- solve     solve an image field. Plot further results with IMAGE method.   
+- stop      ends any current annotation and reset the object.   
+- visible   return/display all visible objects on image   
+- waitfor   waits for completion of the annotation   
+- web       loads an image and identifies its objects using web service   
+- xy2sky    convert pixel image coordinates to RA,Dec 
  
 Installation <a id=installation></a>
 ============

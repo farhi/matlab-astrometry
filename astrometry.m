@@ -45,38 +45,38 @@ classdef astrometry < handle
   % Going further
   % -------------
   %
-  %  as = astrometry.load(dir); image(as);
+  %  as = LOAD(as, dir); IMAGE(as);
   %    Read an existing Astrometry.net set of files stored in a given directory.
   %    The directory may contain WCS, CORR, RDLS, JSON, and image.
   %    Then plot the result. This allows to get previous data files, or obtained
   %    externally, and label them. The 'as' astrometry object must have been used
   %    to solve or import astrometry data.
   %
-  %  [x,y] = sky2xy(as, ra, dec)
+  %  [x,y] = SKY2XY(as, ra, dec)
   %    Convert a RA/DEC set of coordinates (in [deg] or 'hh:mm:ss'/'deg::mm:ss')
   %    into pixel coordinates on the image. The 'as' astrometry object must have 
   %    been used to solve or import astrometry data.
   %
-  %  [ra, dec] = xy2sky(as, x,y)
-  %  [ra, dec] = xy2sky(as, x,y, 'string')
+  %  [ra, dec] = XY2SKY(as, x,y)
+  %  [ra, dec] = XY2SKY(as, x,y, 'string')
   %    Convert pixel coordinates on the image into a RA/DEC set of coordinates 
   %    (in [deg]). When given a 'string' argument, the result is given in 
   %    'hh:mm:ss'/'deg:mm:ss'. The 'as' astrometry object must have been used
   %    to solve or import astrometry data.
   %
-  %  f = astrometry.findobj('object name')
+  %  f = FINDOBJ(as,'object name')
   %    Return information about a named object (star, deep sky object) from the 
   %    data base. Example: astrometry.findobj('M33')
   %
-  %  as = astrometry.local(file, ...);
+  %  LOCAL(as, file, ...);
   %    Explicitly use the local 'solve-field' astrometry.net installation.
   %    See above for the additional arguments.
   %
-  %  as = astrometry.web(file, ...);
+  %  WEB(as, file, ...);
   %    Explicitly use the http://nova.astrometry.net/ web service.
   %    See above for the additional arguments.
   %
-  %  web(as)
+  %  WEB(as)
   %    For a solved image, the corresponding sky view is displayed on 
   %    http://www.sky-map.org . The 'as' astrometry object must have been used
   %    to solve or import astrometry data.
@@ -89,27 +89,27 @@ classdef astrometry < handle
   % You may use getstatus(as) to inquire for the solve-plate status (running, success, failed).
   % To wait for the end of the annotation, use waitfor(as).
   %
-  % * as.result.RA and as.result.Dec provide the center coordinates of the 
+  % - as.result.RA and as.result.Dec provide the center coordinates of the 
   %   field (in [deg]), while as.result.RA_hms and as.result.Dec_dms provide the 
   %   'HH:MM:SS' and 'Deg:MM:SS' coordinates. 
-  % * The field rotation wrt sky is stored in as.result.rotation. 
-  % * The pixel scale is given in [arcmin/pixel] as as.result.pixel_scale. 
-  % * The field extension is given with its bounds as as.result.RA_min, as.result.RA_max,
+  % - The field rotation wrt sky is stored in as.result.rotation. 
+  % - The pixel scale is given in [arcmin/pixel] as as.result.pixel_scale. 
+  % - The field extension is given with its bounds as as.result.RA_min, as.result.RA_max,
   %   as.result.Dec_min, and as.result.Dec_min. 
-  % * The constellation name is stored in as.result.Constellation.
+  % - The constellation name is stored in as.result.Constellation.
   %
   % Improving the plate-solve efficiency
   % ------------------------------------
   %
   %  To facilitate the plate-solve/annotation of images, you may:
   %
-  %  * specify the field size with additional arguments such as: 
+  %  - specify the field size with additional arguments such as: 
   %     astrometry(..., 'scale-low', 0.5, 'scale-high',2)
   %
-  %  * provide an initial guess for the location, and its range, such as:
+  %  - provide an initial guess for the location, and its range, such as:
   %     astrometry('examples/M13-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
   %
-  %  * add more star data bases (e.g. 2MASS over Tycho2).
+  %  - add more star data bases (e.g. 2MASS over Tycho2).
   %
   % Examples
   % --------
@@ -119,16 +119,19 @@ classdef astrometry < handle
   %
   % Methods
   % -------
-  %  
-  %   as=astrometry(filename)
-  %   image(as)
-  %   load(astrometry, dir)
-  %   local(astrometry, filename, ...)
-  %   web(astrometry, filename, ...)
-  %   sky2sx(as, ra, dec)
-  %   xy2sky(as, x, y)
-  %   findobj(as, 'name')
-  %   waitfor(as)
+  % - findobj   find a given object in catalogs.    
+  % - getstatus return the astrometry status (success, failed)
+  % - image     show the solve-plate image with annotations
+  % - load      load astrometry files (WCS,FITS) from a directory   
+  % - local     loads an image and identifies its objects using local solve-field  
+  % - plot      show the solve-plate image with annotations. Same as image.   
+  % - sky2xy    convert RA,Dec coordinates to x,y pixels on image   
+  % - solve     solve an image field. Plot further results with IMAGE method.   
+  % - stop      ends any current annotation and reset the object.   
+  % - visible   return/display all visible objects on image   
+  % - waitfor   waits for completion of the annotation   
+  % - web       loads an image and identifies its objects using web service   
+  % - xy2sky    convert pixel image coordinates to RA,Dec 
   %
   % Installation:
   % -------------
@@ -168,11 +171,11 @@ classdef astrometry < handle
      % example: 'kvfubnepntofzpcl' 'ghqpqhztzychczjh'
      % from: https://git.kpi.fei.tuke.sk/TP/ExplorationOfInterstellarObjects/blob/master/src/sk/tuke/fei/kpi/tp/eoio/AstrometryAPI.java
 
-    result     = [];
-    filename   = '';
+    result     = [];  % results from the annotation or empty when failed
+    filename   = '';  % the image to annotate
     status     = 'init';  % can be: running, failed, success
-    catalogs   = [];
-    vargin     = [];
+    catalogs   = [];  % catalogs of common objects
+    vargin     = [];  % arguments stored at instantiation for reuse
   end % properties
   
   properties (Access=private)
@@ -195,7 +198,7 @@ classdef astrometry < handle
   methods
   
     function self=astrometry(filename, varargin)
-      % astrometry loads an image and identifies its objects using astrometry.net
+      % ASTROMETRY Loads an image and identifies its objects using astrometry.net
       % 
       % as = astrometry;
       %   Create a solver, but does not solve. 
@@ -249,7 +252,7 @@ classdef astrometry < handle
     end % astrometry
     
     function self = local(self, filename, varargin)
-      % astrometry.local loads an image and identifies its objects using local solve-field
+      % LOCAL Loads an image and identifies its objects using local solve-field
       %
       % as = local(astrometry, file, ...);
       %   Solve the given astrophotography image with local method.
@@ -270,7 +273,7 @@ classdef astrometry < handle
     end % local (annotation)
     
     function self = web(self, filename, varargin)
-      % astrometry.web loads an image and identifies its objects using web service
+      % WEB Loads an image and identifies its objects using web service
       %
       % as = web(astrometry, file, ...);
       %   Solve the given astrophotography image with web method.
@@ -308,7 +311,7 @@ classdef astrometry < handle
     end % web
     
     function [ret, filename] = solve(self, filename, method, varargin)
-      % astrometry.solve solve an image field. Plot further results with image method.
+      % SOLVE Solve an image field. Plot further results with IMAGE method.
       %
       %  solve(astrometry, filename, method, ...)
       %
@@ -470,14 +473,22 @@ classdef astrometry < handle
       ret = cmd;
     end % solve
     
-    function ret = load(self, d)
-      % astrometry.load load astrometry files (WCS,FITS) from a directory
-      %
+    function ret = load(self, d, varargin)
+      % LOAD Load astrometry files (WCS,FITS) from a directory
+      %   LOAD(astrometry, directory);
       %   The directory may contain WCS, CORR, RDLS or JSON, and image.
       %   No solve plate is performed, only data is read.
       %
-      % as = load(astrometry, directory);
+      %   LOAD(astrometry, image, ...) starts solve-plate annotation, same as SOLVE.
       if nargin < 2, d = self.process_dir; end
+      if ~isdir(d)
+        % loading an image ?
+        try
+          im = imread(d);
+          solve(self, d, varargin{:});
+          return
+        end
+      end
       
       self.result = getresult(d, self);
       if isempty(self.result)
@@ -501,11 +512,12 @@ classdef astrometry < handle
     end % load
     
     function ret=getstatus(self)
+      % GETSTATUS Return the astrometry status (success, failed)
       ret=self.status;
     end % getstatus
     
     function fig = plot(self)
-      % astrometry.plot show the solve-plate image with annotations. Same as image.
+      % PLOT Show the solve-plate image with annotations. Same as image.
       %
       %   as=astrometry(file);
       %   plot(as);
@@ -513,7 +525,7 @@ classdef astrometry < handle
     end % plot
     
     function [fig] = image(self)
-      % astrometry.image show the solve-plate image with annotations
+      % IMAGE Show the solve-plate image with annotations
       %
       %   as=astrometry(file);
       %   image(as);
@@ -597,7 +609,7 @@ classdef astrometry < handle
     end % image
     
     function [x,y] = sky2xy(self, ra,dec)
-      % astrometry.sky2xy convert RA,Dec coordinates to x,y pixels on image
+      % SKY2XY Convert RA,Dec coordinates to x,y pixels on image
       %
       % input:
       %   ra,dec: RA and Dec [deg]
@@ -616,7 +628,7 @@ classdef astrometry < handle
     end
     
     function [ra,dec] = xy2sky(self, x,y, str)
-      % astrometry.xy2sky convert pixel image coordinates to RA,Dec
+      % XY2SKY Convert pixel image coordinates to RA,Dec
       %
       % input:
       %   x,y:    pixel coordinates
@@ -637,7 +649,7 @@ classdef astrometry < handle
     end
     
     function found = findobj(self, name)
-      % astrometry.findobj(name) find a given object in catalogs. 
+      % FINDOBJ Find a given object in catalogs. 
       catalogs = fieldnames(self.catalogs);
       found = [];
       
@@ -692,7 +704,7 @@ classdef astrometry < handle
     end % findobj
     
     function v = visible(self)
-      % astrometry.visible return/display all visible objects on image
+      % VISIBLE Return/display all visible objects on image
       v = [];
 
       if ~isempty(self.result) && isfield(self.result, 'RA_hms')
@@ -755,7 +767,7 @@ classdef astrometry < handle
     end % visible
     
     function disp(self)
-      % disp(s) display Astrometry object (details)
+      % DISP Display Astrometry object (details)
       
       if ~isempty(inputname(1))
         iname = inputname(1);
@@ -800,7 +812,7 @@ classdef astrometry < handle
     end % disp
     
     function display(self)
-      % display(s) display Astrometry object (short)
+      % DISPLAY Display Astrometry object (short)
       
       if ~isempty(inputname(1))
         iname = inputname(1);
@@ -820,14 +832,14 @@ classdef astrometry < handle
     end % display
     
     function waitfor(self)
-      % waitfor waits for completion of the annotation
+      % WAITFOR Waits for completion of the annotation
       while strcmp(self.status, 'running')
         pause(5);
       end
     end % waitfor
     
     function stop(self)
-    % STOP ends any current annotation and reset the object.
+    % STOP Ends any current annotation and reset the object.
       % clear the timer
       if ~isempty(self.timer) && isa(self.timer,'timer')
         stop(self.timer); delete(self.timer); 
