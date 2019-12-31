@@ -368,6 +368,11 @@ classdef astrometry < handle
         if isequal(filename,0), filename = ''; return; end
         filename = fullfile(pathname, filename);
       end
+      if ischar(filemane) && any(strncmp(filename, {'http','ftp:'}, 4))
+        [p,f,e] = fileparts(filename);
+        tmpfile = [ tempname e ];
+        filename = urlwrite(filename, tmpfile);
+      end
       if ~ischar(filename), filename = ''; return;
       elseif any(strcmpi(filename,{'/dev/null','null','none'}))
         filename = []; 
