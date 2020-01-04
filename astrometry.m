@@ -176,6 +176,8 @@ classdef astrometry < handle
     status     = 'init';  % can be: running, failed, success
     catalogs   = [];  % catalogs of common objects
     vargin     = [];  % arguments stored at instantiation for reuse
+    autoplot   = false; % when true, display annotated image on success
+    figure     = [];  % last figure shown
   end % properties
   
   properties (Access=private)
@@ -225,7 +227,10 @@ classdef astrometry < handle
           switch varargin{index}
           case 'catalogs'
             self.catalogs = varargin{index+1};
-            removeme = [ index index+1 ];
+            removeme = [ removeme index index+1 ];
+          case 'autoplot'
+            self.autoplot = true;
+            removeme = [ removeme index ];
           end
         end
       end
@@ -354,7 +359,14 @@ classdef astrometry < handle
       % request image if missing
       if nargin < 2, filename = ''; end
       if isempty(filename), filename = self.filename; end
-      if isempty(filename)
+      if iscell(filename)
+        ret={};
+        for index=1:numel(filename)
+          ret{end+1} = solve(self, filename{index}, method, varargin{:});
+        end
+        return
+      end
+      if ischar(filename) && isempty(filename)
         % request an image file to solve
         [filename, pathname] = uigetfile( ...
           {'*.JPG;*.JPEG;*.jpg;*.jpeg;*.GIF;*.gif;*.PNG;*.png;*.FITS;*.fits;*.FTS;*.fts', ...
@@ -367,8 +379,20 @@ classdef astrometry < handle
            [ mfilename ': Pick an astrophotography image to solve' ]);
         if isequal(filename,0), filename = ''; return; end
         filename = fullfile(pathname, filename);
+      elseif isempty(filename)
+        return; % nothing to do
       end
-      if ischar(filemane) && any(strncmp(filename, {'http','ftp:'}, 4))
+      % when given as RGB
+      if isnumeric(filename)
+        rgb = filename;
+        filename = tempname;
+        imwrite(im, [ filename '.png' ], 'png', ...
+          'Author', getenv('USER'), ...
+          'CreationTime', datestr(now), ...
+          'Software', mfilename);
+      end
+      % handle distant images
+      if ischar(filename) && any(strncmp(filename, {'http','ftp:'}, 4))
         [p,f,e] = fileparts(filename);
         tmpfile = [ tempname e ];
         filename = urlwrite(filename, tmpfile);
@@ -545,6 +569,7 @@ classdef astrometry < handle
         return
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
+      self.figure = fig;
       image(im);
       clear im;
       
@@ -1193,6 +1218,12 @@ function TimerCallback(src, evnt)
           
           notify(self, 'annotationEnd');
           notify(self, 'idle');
+          if self.autoplot
+            image(self);
+            assignin('base','ans', self);
+            ans = self;
+            disp(ans);
+          end
           beep;
         end
       end
