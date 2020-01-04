@@ -342,8 +342,10 @@ classdef astrometry < handle
       if nargin < 3,      method = ''; end
       if isempty(method), method = 'solve-field'; end
       
-      if ~isempty(self.process_java)    return; end           % already running
-      if strcmp(self.status, 'running') return; end
+      if ishold(self)
+        disp([ '[' datestr(now) ']: ' mfilename ': current solver is RUNNING.' ]);
+        return; 
+      end
       
       isnova = strcmp(method, 'nova')           || strcmp(method, 'web') ...
             || strcmp(method, 'astrometry.net') || strcmp(method, 'client.py');
@@ -402,7 +404,7 @@ classdef astrometry < handle
         filename = []; 
         return
       elseif isempty(dir(filename))
-        disp([ mfilename ': ERROR: invalid file name "' filename '"' ]);
+        disp([ '[' datestr(now) ']: ' mfilename ': ERROR: invalid file name "' filename '"' ]);
         filename = []; 
         return
       end
@@ -484,7 +486,7 @@ classdef astrometry < handle
       t0 = clock;
       self.status   = 'running';
       notify(self, 'busy');
-      disp([ mfilename ': [' datestr(now) ']: ' method ': please wait (may take e.g. few minutes)...' ])
+      disp([ '[' datestr(now) ']: ' mfilename ': ' method ' please wait (may take e.g. few minutes)...' ])
       
       % create the timer for auto update
       if isempty(self.timer) || ~isa(self,timer, 'timer') || ~isvalid(self.timer)
@@ -545,6 +547,12 @@ classdef astrometry < handle
       ret=self.status;
     end % getstatus
     
+    function st = ishold(self)
+      % ISHOLD get the solver status (IDLE, BUSY)
+      %   st = ISHOLD(s) returns 1 when the solver is BUSY.
+      st = ~isempty(self.process_java);
+    end % ishold
+    
     function fig = plot(self)
       % PLOT Show the solve-plate image with annotations. Same as image.
       %
@@ -565,7 +573,7 @@ classdef astrometry < handle
         im  = imread(self.filename);
       catch ME
         getReport(ME)
-        disp([ mfilename ': ERROR: can not read image ' self.filename ]);
+        disp([ '[' datestr(now) ']: ' mfilename  ': ERROR: can not read image ' self.filename ]);
         return
       end 
       fig = figure('Name', [ mfilename ': ' self.filename ]);
@@ -720,7 +728,7 @@ classdef astrometry < handle
       end
 
       if ~isempty(found)
-        disp([ mfilename ': Found object ' name ' as: ' found.NAME ])
+        disp([ '[' datestr(now) ']: ' mfilename  ': Found object ' name ' as: ' found.NAME ])
         if found.DIST > 0
           disp(sprintf('  %s: Magnitude: %.1f ; Type: %s ; Dist: %.3g [ly]', ...
             found.catalog, found.MAG, found.TYPE, found.DIST*3.262 ));
@@ -729,7 +737,7 @@ classdef astrometry < handle
             found.catalog, found.MAG, found.TYPE ));
         end
       else
-        disp([ mfilename ': object ' name ' was not found.' ])
+        disp([ '[' datestr(now) ']: ' mfilename  ': object ' name ' was not found.' ])
       end
     end % findobj
     
@@ -812,6 +820,23 @@ classdef astrometry < handle
       end
       fprintf(1,'%s = %s for "%s":\n',iname, id, self.filename);
       if ~isempty(self.result) && strcmp(self.status, 'success') && isfield(self.result, 'RA_hms')
+        % get list of visible objects, extract brightest star and DSO
+        v = visible(self); 
+        mag = [ inf, inf ];  % star, dso
+        name= { '',  ''};
+        
+        for index=1:numel(v)
+          % find all objects from data base within bounds
+          this = v(index);
+          % stars in green, DSO in cyan
+          if strcmp(this.catalog,'stars') obj_index=1;
+          else                            obj_index=2;
+          end
+          if this.MAG < mag(obj_index)
+            mag(obj_index) = this.MAG;
+            name{obj_index}= [ this.NAME ' ' this.TYPE ];
+          end
+        end
         if isfield(self.result, 'Constellation')
           disp([ '  Constellation: ' self.result.Constellation ]);
         end
@@ -819,6 +844,11 @@ classdef astrometry < handle
           num2str(self.result.RA)  ' [deg]']);
         disp([   '  DEC:           ' self.result.Dec_dms ' [deg:min:s]; ' ...
           num2str(self.result.Dec) ' [deg]' ]);
+        for index=1:2
+          if ~isempty(name{index})
+            disp([ '    magnitude ' num2str(mag(index)) ' ' name{index} ])
+          end
+        end
         disp([   '  Rotation:      ' num2str(self.result.rotation) ' [deg] (to get sky view)' ]);
         disp([   '  Pixel scale:   ' num2str(self.result.pixel_scale) ' [arcsec/pixel]' ]);
         if isdeployed || ~usejava('jvm') || ~usejava('desktop')
@@ -855,7 +885,7 @@ classdef astrometry < handle
                  '<a href="matlab:image(' iname ');">plot</a>,' ...
                  '<a href="matlab:disp(' iname ');">more...</a>)' ];
       end
-      if strcmp(self.status, 'running')
+      if ishold(self)
         fprintf(1,'%s = %s for "%s" BUSY\n',iname, id, self.filename);
       else fprintf(1,'%s = %s for "%s"\n',iname, id, self.filename);
       end
@@ -863,7 +893,7 @@ classdef astrometry < handle
     
     function waitfor(self)
       % WAITFOR Waits for completion of the annotation
-      while strcmp(self.status, 'running')
+      while ishold(self)
         pause(5);
       end
     end % waitfor
@@ -879,7 +909,7 @@ classdef astrometry < handle
       if ~isempty(p) && isjava(p)
         try
           p.destroy;
-          disp([ mfilename ': abort current annotation...' ])
+          disp([ '[' datestr(now) ']: ' mfilename  ': abort current annotation...' ])
         end
       end
       self.process_java = [];
@@ -1013,7 +1043,7 @@ function executables = find_executables
       if status ~= 127
         % the executable is found
         executables.(name) = try_target{1};
-        disp([ mfilename ': found ' exe{1} ' as ' try_target{1} ])
+        disp([ '[' datestr(now) ']: ' mfilename ': found ' exe{1} ' as ' try_target{1} ])
         break
       else
         executables.(name) = [];
@@ -1058,7 +1088,7 @@ function [ra_h, ra_min, ra_s] = getra(ra, str)
       ra_s   = ra(3);
     end
   else
-    disp([ mfilename ': invalid RA.' ])
+    disp([ '[' datestr(now) ']: ' mfilename  ': invalid RA.' ])
     disp(ra)
   end
   if nargout == 1
@@ -1104,7 +1134,7 @@ function [dec_deg, dec_min, dec_s] = getdec(dec, str)
       dec_s   = dec(3);
     end
   else
-    disp([ mfilename ': invalid DEC' ])
+    disp([ '[' datestr(now) ']: ' mfilename ': invalid DEC' ])
     disp(dec)
   end
   if nargout == 1
@@ -1141,7 +1171,7 @@ function catalogs = getcatalogs
   end
   
   % load catalogs: objects, stars
-  disp([ mfilename ': Welcome ! Loading Catalogs:' ]);
+  disp([ '[' datestr(now) ']: ' mfilename  ': Welcome ! Loading Catalogs:' ]);
   catalogs = load(mfilename);
   
   % display available catalogs
@@ -1211,7 +1241,7 @@ function TimerCallback(src, evnt)
             if ~isempty(self.result) self.status = 'success';
             else self.status = 'failed'; end
           end
-          disp([ mfilename ': [' datestr(now) ']: annotation end: ' upper(self.status) '. exit value=' num2str(exitValue) ]);
+          disp([ '[' datestr(now) ']: ' mfilename ': annotation end: ' upper(self.status) '. exit value=' num2str(exitValue) ]);
           % clear the timer
           stop(src); delete(src); self.timer=[];
           self.process_java = [];
