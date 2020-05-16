@@ -556,12 +556,12 @@ classdef astrometry < handle
       st = ~isempty(self.process_java);
     end % ishold
     
-    function fig = plot(self)
+    function fig = plot(self, varargin)
       % PLOT Show the solve-plate image with annotations. Same as image.
       %
       %   as=astrometry(file);
       %   plot(as);
-      fig = image(self);
+      fig = image(self, varargin{:});
     end % plot
     
     function [fig] = image(self, mag)
@@ -614,6 +614,11 @@ classdef astrometry < handle
         % get list of visible objects
         v = visible(self, mag);
         
+        % make sure we do not plot too many
+        if numel(v) > 1500
+          v = v(1:1500);
+        end
+        
         for index=1:numel(v)
           % find all objects from data base within bounds
           this = v(index);
@@ -645,7 +650,9 @@ classdef astrometry < handle
             uimenu(hcmenu, 'Label', [ 'DIST= ' sprintf('%.3g', this.DIST*3.262) ' [ly]' ]);
           end
           set(h, 'UIContextMenu', hcmenu);
-          t=text(x+this.SIZE,y-this.SIZE,this.NAME); set(t,'Color', c);
+          if numel(v) < 1500
+            t=text(x+this.SIZE,y-this.SIZE,this.NAME); set(t,'Color', c);
+          end
         end % for
 
       end % success
@@ -742,6 +749,15 @@ classdef astrometry < handle
           disp(sprintf('  %s: Magnitude: %.1f ; Type: %s', ...
             found.catalog, found.MAG, found.TYPE ));
         end
+        if ~isempty(self.result) && isfield(self.result, 'RA_hms')
+          ret = self.result;
+          if  (ret.RA_min <= found.RA ...
+            &               found.RA  <= ret.RA_max ...
+            & ret.Dec_min<= found.DEC ...
+            &               found.DEC <= ret.Dec_max)
+            disp([ '    ' found.NAME ' is within the image field.' ]);
+          end
+        end
       else
         disp([ '[' datestr(now) ']: ' mfilename  ': object ' name ' was not found.' ])
       end
@@ -758,12 +774,6 @@ classdef astrometry < handle
         
         ret = self.result;
         
-        if nargout == 0
-          disp(self.filename)
-          disp 'TYPE            MAG  RA              DEC                 DIST  NAME'
-          disp '----------------------------------------------------------------------'
-        end
-        
         for catalogs = {'stars','deep_sky_objects'}
           % find all objects from data base within bounds
           catalog = self.catalogs.(catalogs{1});
@@ -774,6 +784,11 @@ classdef astrometry < handle
             & ret.Dec_min<= catalog.DEC ...
             &               catalog.DEC <= ret.Dec_max ...
             & catalog.MAG <= mag);
+          
+          if ~isempty(found)
+            disp([ '[' datestr(now) ']: ' mfilename  ': ' num2str(numel(found)) ...
+              ' referenced ' catalogs{1} ' in field.' ])
+          end
           for index=1:numel(found)
             obj     = found(index);
             ra      = catalog.RA(obj);
@@ -799,15 +814,26 @@ classdef astrometry < handle
             if isempty(v), v = this;
             else v(end+1) = this; end
             
-            if nargout == 0
-              % display the list
-              fprintf(1, '%-12s  %5.1f  %-14s  %-14s  %8.2g  %s\n', ...
-                this.TYPE, this.MAG, this.RA, this.DEC, this.DIST*3.262, this.NAME);
-            end
-            
           end % object
           
         end % catalogs
+        
+        % sort by increasing magnitude (decreasing brightness)
+        [~,index]=sort([ v.MAG ]);
+        v = v(index);
+        
+        % display the list
+        if nargout == 0
+          disp(self.filename)
+          disp 'TYPE            MAG  RA              DEC                 DIST  NAME'
+          disp '----------------------------------------------------------------------'
+          for index=1:numel(v)
+            this = v(index);
+            % display the list
+            fprintf(1, '%-12s  %5.1f  %-14s  %-14s  %8.2g  %s\n', ...
+              this.TYPE, this.MAG, this.RA, this.DEC, this.DIST*3.262, this.NAME);
+          end
+        end
         
       end % success
       
