@@ -311,6 +311,9 @@ classdef astrometry < handle
           open_system_browser(url);
       else
         if isempty(varargin) && ~isempty(self.vargin), varargin = self.vargin; end
+        if nargin < 2 || isempty(filename)
+          filename = self.filename;
+        end
         [ret, filename] = solve(self, filename, 'web', varargin{:});
       end
     end % web
@@ -561,11 +564,14 @@ classdef astrometry < handle
       fig = image(self);
     end % plot
     
-    function [fig] = image(self)
+    function [fig] = image(self, mag)
       % IMAGE Show the solve-plate image with annotations
+      %   IMAGE(as, mag) limits the objects up to given magnitude.
       %
       %   as=astrometry(file);
       %   image(as);
+
+      if nargin < 2, mag = inf; end
       
       fig = [];
       if ~ischar(self.filename) || isempty(self.filename) || isempty(dir(self.filename)), return; end
@@ -606,7 +612,7 @@ classdef astrometry < handle
         set(h, 'UIContextMenu', hcmenu);
         
         % get list of visible objects
-        v = visible(self);
+        v = visible(self, mag);
         
         for index=1:numel(v)
           % find all objects from data base within bounds
@@ -741,9 +747,12 @@ classdef astrometry < handle
       end
     end % findobj
     
-    function v = visible(self)
+    function v = visible(self, mag)
       % VISIBLE Return/display all visible objects on image
+      %   VISIBLE(as, mag) limits the objects up to given magnitude.
+      
       v = [];
+      if nargin < 2, mag = inf; end
 
       if ~isempty(self.result) && isfield(self.result, 'RA_hms')
         
@@ -763,8 +772,8 @@ classdef astrometry < handle
               ret.RA_min <= catalog.RA ...
             &               catalog.RA  <= ret.RA_max ...
             & ret.Dec_min<= catalog.DEC ...
-            &               catalog.DEC <= ret.Dec_max);
-          
+            &               catalog.DEC <= ret.Dec_max ...
+            & catalog.MAG <= mag);
           for index=1:numel(found)
             obj     = found(index);
             ra      = catalog.RA(obj);
