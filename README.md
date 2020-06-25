@@ -121,9 +121,13 @@ To facilitate the plate-solve/annotation of images, you may:
  
 - specify the field size with additional arguments such as: 
   `astrometry(..., 'scale-low', 0.5, 'scale-high',2)`
+  This is what **works best**, by far.
 
 - provide an initial guess for the location, and its range, such as:
   `astrometry('examples/M33-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)`
+  
+- provide the name of an object on field, such as:
+ `astrometry('examples/M13-2018-05-19.jpg','object','m 13','radius',2)`
 
 - add more star data bases (e.g. 2MASS over Tycho2).
  
@@ -141,18 +145,18 @@ Examples <a id=examples></a>
 Methods <a id=methods></a>
 =======
    
-- findobj   find a given object in catalogs.    
+- findobj   find a given object in catalogs.
 - getstatus return the astrometry status (success, failed)
 - image     show the solve-plate image with annotations
-- load      load astrometry files (WCS,FITS) from a directory   
-- local     loads an image and identifies its objects using local solve-field  
-- plot      show the solve-plate image with annotations. Same as image.   
-- sky2xy    convert RA,Dec coordinates to x,y pixels on image   
-- solve     solve an image field. Plot further results with IMAGE method.   
-- stop      ends any current annotation and reset the object.   
-- visible   return/display all visible objects on image   
-- waitfor   waits for completion of the annotation   
-- web       loads an image and identifies its objects using web service   
+- load      load astrometry files (WCS,FITS) from a directory
+- local     loads an image and identifies its objects using local solve-field
+- plot      show the solve-plate image with annotations. Same as image.
+- sky2xy    convert RA,Dec coordinates to x,y pixels on image
+- solve     solve an image field. Plot further results with IMAGE method.
+- stop      ends any current annotation and reset the object.
+- visible   return/display all visible objects on image
+- waitfor   waits for completion of the annotation
+- web       loads an image and identifies its objects using web service
 - xy2sky    convert pixel image coordinates to RA,Dec 
  
 Installation <a id=installation></a>

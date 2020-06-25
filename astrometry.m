@@ -33,6 +33,7 @@ classdef astrometry < handle
   %      radius:  approximate field size     (in deg)
   %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
   %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+  %      object:  name of an object on field (string, e.g. 'M 16')
   %
   %  These two syntaxes will try first any local astrometry.net installation, and
   %  if failed, the http://nova.astrometry.net/ service.
@@ -83,11 +84,13 @@ classdef astrometry < handle
   %
   % Using results
   % -------------
-  % Once an image has been solved with the 'as' object, you can use the astrometry results.
+  %   Once an image has been solved with the 'as' object, you can use the
+  %   astrometry results.
   %
-  % The annotation is done asynchronously, and the Matlab prompt is recovered.
-  % You may use getstatus(as) to inquire for the solve-plate status (running, success, failed).
-  % To wait for the end of the annotation, use waitfor(as).
+  %   The annotation is done asynchronously, and the Matlab prompt is recovered.
+  %   You may use getstatus(as) to inquire for the solve-plate status
+  %   (running, success, failed).
+  %   To wait for the end of the annotation, use waitfor(as). stop(as) aborts it.
   %
   % - as.result.RA and as.result.Dec provide the center coordinates of the 
   %   field (in [deg]), while as.result.RA_hms and as.result.Dec_dms provide the 
@@ -107,7 +110,12 @@ classdef astrometry < handle
   %     astrometry(..., 'scale-low', 0.5, 'scale-high',2)
   %
   %  - provide an initial guess for the location, and its range, such as:
-  %     astrometry('examples/M13-2018-05-19.jpg','ra','01:33:51','dec','30:39:35','radius', 2)
+  %     astrometry('examples/M13-2018-05-19.jpg', ...
+  %       'ra','16:33:51','dec','30:39:35','radius', 2)
+  %
+  %  - provide the name of an object on field, such as:
+  %     astrometry('examples/M13-2018-05-19.jpg','object','m 13','radius',2)
+  % 
   %
   %  - add more star data bases (e.g. 2MASS over Tycho2).
   %
@@ -178,12 +186,14 @@ classdef astrometry < handle
     vargin     = [];  % arguments stored at instantiation for reuse
     autoplot   = false; % when true, display annotated image on success
     figure     = [];  % last figure shown
+    duration   = 0;
   end % properties
   
   properties (Access=private)
     process_java = [];
     process_dir  = [];
     timer        = [];
+    starttime    = [];
   end % private properties
   
   properties (Constant=true)
@@ -216,6 +226,7 @@ classdef astrometry < handle
       %      radius:  approximate field size     (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      %      object:  name of an object on field (string, e.g. 'M 16')
       % 
       % Example:
       %   as=astrometry('M33.jpg','scale-low', 0.5, 'scale-high',2);
@@ -270,6 +281,7 @@ classdef astrometry < handle
       %      radius:  approximate field size     (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      %      object:  name of an object on field (string, e.g. 'M 16')
       % 
       % Example:
       %   as=local(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
@@ -293,6 +305,7 @@ classdef astrometry < handle
       %      radius:  approximate field size     (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      %      object:  name of an object on field (string, e.g. 'M 16')
       % 
       % Example:
       %   as=web(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
@@ -332,6 +345,7 @@ classdef astrometry < handle
       %      radius:  approximate field size     (in deg)
       %      scale-low:   lower estimate of the field coverage (in [deg], e.g. 0.1)
       %      scale-high:  upper estimate of the field coverage (in [deg], e.g. 180)
+      %      object:  name of an object on field (string, e.g. 'M 16')
       %      
       % example: as.solve('M33.jpg')
       %          as.solve('M33.jpg','default','ra','01:33:51','dec','30:39:35','radius', 2)
@@ -469,25 +483,55 @@ classdef astrometry < handle
         end
       end
       cmd = [ cmd ' --wcs='      fullfile(d, 'results.wcs') ];
+
+      % handle arguments: target name/findobj
+      if nargin > 3
+        obj = []; rmarg = [];
+        for f=1:numel(varargin)
+          if ischar(varargin{f}) && f < numel(varargin) ...
+            && any(strcmp(varargin{f}, {'findobj','goto','obj','object'})) ...
+            if ischar(varargin{f+1})
+              obj = self.findobj(varargin{f+1});
+            elseif isstruct(varargin{f+1})
+              obj = varargin{f+1};
+            end
+            rmarg = [ f f+1 ];
+          elseif isstruct(varargin{f})
+            obj = varargin{f};
+            rmarg = f;
+          end
+        end
+        if ~isempty(obj) && isstruct(obj) ...
+          && isfield(obj, 'RA') && isfield(obj, 'DEC')
+          varargin(rmarg) = [];
+          varargin{end+1} = 'ra';           varargin{end+1} = obj.RA;
+          varargin{end+1} = 'dec';          varargin{end+1} = obj.DEC;
+          if isfield(obj,'NAME')
+            disp([ '[' datestr(now) ']: ' mfilename ': goto "' obj.NAME '"' ]);
+          end
+        end
+      end
       
       % handle additional arguments in name/value pairs
       if nargin > 3 && mod(numel(varargin), 2) == 0
         for f=1:2:numel(varargin)
-          if isnova
-            if     strcmp(varargin{f}, 'scale-low')  varargin{f}='scale-lower'; 
-            elseif strcmp(varargin{f}, 'scale-high') varargin{f}='scale-upper'; end
-          else
-            if     strcmp(varargin{f}, 'scale-lower') varargin{f}='scale-low'; 
-            elseif strcmp(varargin{f}, 'scale-upper') varargin{f}='scale-high'; end
+          if ischar(varargin{f})
+            if isnova
+              if     strcmp(varargin{f}, 'scale-low')  varargin{f}='scale-lower'; 
+              elseif strcmp(varargin{f}, 'scale-high') varargin{f}='scale-upper'; end
+            else
+              if     strcmp(varargin{f}, 'scale-lower') varargin{f}='scale-low'; 
+              elseif strcmp(varargin{f}, 'scale-upper') varargin{f}='scale-high'; end
+            end
+            cmd = [ cmd ' --' varargin{f} '=' num2str(varargin{f+1}) ];
           end
-          cmd = [ cmd ' --' varargin{f} '=' num2str(varargin{f+1}) ];
         end
       end
 
       % execute command
       disp(cmd)
-      t0 = clock;
       self.status   = 'running';
+      self.starttime= clock;
       notify(self, 'busy');
       disp([ '[' datestr(now) ']: ' mfilename ': ' method ' please wait (may take e.g. few minutes)...' ])
       
@@ -1276,10 +1320,11 @@ function TimerCallback(src, evnt)
             if ~isempty(self.result) self.status = 'success';
             else self.status = 'failed'; end
           end
-          disp([ '[' datestr(now) ']: ' mfilename ': annotation end: ' upper(self.status) '. exit value=' num2str(exitValue) ]);
+          disp([ '[' datestr(now) ']: ' mfilename ': annotation end: ' upper(self.status) ' for ' self.filename '. exit value=' num2str(exitValue) ]);
           % clear the timer
           stop(src); delete(src); self.timer=[];
           self.process_java = [];
+          self.duration = etime(clock, self.starttime);
           
           notify(self, 'annotationEnd');
           notify(self, 'idle');
