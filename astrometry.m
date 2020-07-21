@@ -309,7 +309,7 @@ classdef astrometry < handle
       % 
       % Example:
       %   as=web(astrometry, 'M33.jpg','scale-low', 0.5, 'scale-high',2);
-      if nargin == 1 && ~isempty(self.result)
+      if nargin == 1 && ~isempty(self.result) && isstruct(self.result)
         % display a Sky-Map.org view of the astrometry field
         sz = max([ self.result.RA_max-self.result.RA_min self.result.Dec_max-self.result.Dec_min ]);
         z  = 160.*2.^(0:-1:-8); % zoom levels in deg in sky-map
@@ -1102,7 +1102,7 @@ function executables = find_executables
   this_path   = fullfile(fileparts(which(mfilename)));
   
   % what we may use
-  for exe =  { 'solve-field','sextractor','python', 'wcs2kml', 'client.py' }
+  for exe =  { 'solve-field','sextractor','python','python3', 'wcs2kml', 'client.py' }
   
     for try_target={ ...
       fullfile(this_path, [ exe{1} ext ]), ...
@@ -1121,6 +1121,7 @@ function executables = find_executables
 
       if status ~= 127
         % the executable is found
+        if strcmp(name, 'python3') name = 'python'; end
         executables.(name) = try_target{1};
         disp([ '[' datestr(now) ']: ' mfilename ': found ' exe{1} ' as ' try_target{1} ])
         break
