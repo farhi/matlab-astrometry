@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 from __future__ import print_function
 import os
 import sys
@@ -7,12 +7,11 @@ import base64
 
 try:
     # py3
-    from urllib.parse import urlparse, urlencode, quote
+    from urllib.parse import urlencode, quote
     from urllib.request import urlopen, Request
     from urllib.error import HTTPError
 except ImportError:
     # py2
-    from urlparse import urlparse
     from urllib import urlencode, quote
     from urllib2 import urlopen, Request, HTTPError
 
@@ -63,54 +62,26 @@ class Client(object):
 
         # If we're sending a file, format a multipart/form-data
         if file_args is not None:
-            # Make a custom generator to format it the way we need.
-            from io import BytesIO
-            try:
-                # py3
-                from email.generator import BytesGenerator as TheGenerator
-            except ImportError:
-                # py2
-                from email.generator import Generator as TheGenerator
-
-            m1 = MIMEBase('text', 'plain')
-            m1.add_header('Content-disposition',
-                          'form-data; name="request-json"')
-            m1.set_payload(json)
-            m2 = MIMEApplication(file_args[1],'octet-stream',encode_noop)
-            m2.add_header('Content-disposition',
-                          'form-data; name="file"; filename="%s"'%file_args[0])
-            mp = MIMEMultipart('form-data', None, [m1, m2])
-
-            class MyGenerator(TheGenerator):
-                def __init__(self, fp, root=True):
-                    # don't try to use super() here; in py2 Generator is not a
-                    # new-style class.  Yuck.
-                    TheGenerator.__init__(self, fp, mangle_from_=False,
-                                          maxheaderlen=0)
-                    self.root = root
-                def _write_headers(self, msg):
-                    # We don't want to write the top-level headers;
-                    # they go into Request(headers) instead.
-                    if self.root:
-                        return
-                    # We need to use \r\n line-terminator, but Generator
-                    # doesn't provide the flexibility to override, so we
-                    # have to copy-n-paste-n-modify.
-                    for h, v in msg.items():
-                        self._fp.write(('%s: %s\r\n' % (h,v)).encode())
-                    # A blank line always separates headers from body
-                    self._fp.write('\r\n'.encode())
-
-                # The _write_multipart method calls "clone" for the
-                # subparts.  We hijack that, setting root=False
-                def clone(self, fp):
-                    return MyGenerator(fp, root=False)
-
-            fp = BytesIO()
-            g = MyGenerator(fp)
-            g.flatten(mp)
-            data = fp.getvalue()
-            headers = {'Content-type': mp.get('Content-type')}
+            import random
+            boundary_key = ''.join([random.choice('0123456789') for i in range(19)])
+            boundary = '===============%s==' % boundary_key
+            headers = {'Content-Type':
+                       'multipart/form-data; boundary="%s"' % boundary}
+            data_pre = (
+                '--' + boundary + '\n' +
+                'Content-Type: text/plain\r\n' +
+                'MIME-Version: 1.0\r\n' +
+                'Content-disposition: form-data; name="request-json"\r\n' +
+                '\r\n' +
+                json + '\n' +
+                '--' + boundary + '\n' +
+                'Content-Type: application/octet-stream\r\n' +
+                'MIME-Version: 1.0\r\n' +
+                'Content-disposition: form-data; name="file"; filename="%s"' % file_args[0] +
+                '\r\n' + '\r\n')
+            data_post = (
+                '\n' + '--' + boundary + '--\n')
+            data = data_pre.encode() + file_args[1] + data_post.encode()
 
         else:
             # Else send x-www-form-encoded
@@ -166,11 +137,14 @@ class Client(object):
                                 ('parity',None,int),
                                 ('radius', None, float),
                                 ('downsample_factor', None, int),
+                                ('positional_error', None, float),
                                 ('tweak_order', None, int),
                                 ('crpix_center', None, bool),
+                                ('invert', None, bool),
+                                ('image_width', None, int),
+                                ('image_height', None, int),
                                 ('x', None, list),
                                 ('y', None, list),
-            # image_width, image_height
                                 ]:
             if key in kwargs:
                 val = kwargs.pop(key)
@@ -285,9 +259,8 @@ if __name__ == '__main__':
     parser.add_option('--upload-xy', dest='upload_xy', help='Upload a FITS x,y table as JSON')
     parser.add_option('--wait', '-w', dest='wait', action='store_true', help='After submitting, monitor job status')
     parser.add_option('--wcs', dest='wcs', help='Download resulting wcs.fits file, saving to given filename; implies --wait if --urlupload or --upload')
-    parser.add_option('--corr', dest='corr', help='Download resulting corr.fits file, saving to given filename; implies --wait if --urlupload or --upload')
-    parser.add_option('--axy', dest='axy', help='Download resulting axy.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--newfits', dest='newfits', help='Download resulting new-image.fits file, saving to given filename; implies --wait if --urlupload or --upload')
+    parser.add_option('--corr', dest='corr', help='Download resulting corr.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--kmz', dest='kmz', help='Download resulting kmz file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--annotate','-a',dest='annotate',help='store information about annotations in give file, JSON format; implies --wait if --urlupload or --upload')
     parser.add_option('--urlupload', '-U', dest='upload_url', help='Upload a file at specified url')
@@ -303,9 +276,13 @@ if __name__ == '__main__':
     parser.add_option('--dec', dest='center_dec', type=float, help='Dec center')
     parser.add_option('--radius', dest='radius', type=float, help='Search radius around RA,Dec center')
     parser.add_option('--downsample', dest='downsample_factor', type=int, help='Downsample image by this factor')
+    parser.add_option('--positional_error', dest='positional_error', type=float, help='How many pixels a star may be from where it should be.')
     parser.add_option('--parity', dest='parity', choices=('0','1'), help='Parity (flip) of image')
     parser.add_option('--tweak-order', dest='tweak_order', type=int, help='SIP distortion order (default: 2)')
     parser.add_option('--crpix-center', dest='crpix_center', action='store_true', default=None, help='Set reference point to center of image?')
+    parser.add_option('--invert', action='store_true', default=None, help='Invert image before detecting sources -- for white-sky, black-stars images')
+    parser.add_option('--image-width', type=int, help='Set image width for x,y lists')
+    parser.add_option('--image-height', type=int, help='Set image height for x,y lists')
     parser.add_option('--sdss', dest='sdss_wcs', nargs=2, help='Plot SDSS image for the given WCS file; write plot to given PNG filename')
     parser.add_option('--galex', dest='galex_wcs', nargs=2, help='Plot GALEX image for the given WCS file; write plot to given PNG filename')
     parser.add_option('--jobid', '-i', dest='solved_id', type=int,help='retrieve result for jobId instead of submitting new image')
@@ -355,7 +332,7 @@ if __name__ == '__main__':
     c.login(opt.apikey)
 
     if opt.upload or opt.upload_url or opt.upload_xy:
-        if opt.wcs or opt.kmz or opt.newfits or opt.annotate or opt.corr or opt.axy:
+        if opt.wcs or opt.kmz or opt.newfits or opt.corr or opt.annotate:
             opt.wait = True
 
         kwargs = dict(
@@ -378,7 +355,7 @@ if __name__ == '__main__':
                 kwargs.update(scale_upper=opt.scale_upper)
 
         for key in ['scale_units', 'center_ra', 'center_dec', 'radius',
-                    'downsample_factor', 'tweak_order', 'crpix_center',]:
+                    'downsample_factor', 'positional_error', 'tweak_order', 'crpix_center',]:
             if getattr(opt, key) is not None:
                 kwargs[key] = getattr(opt, key)
         if opt.parity is not None:
@@ -437,18 +414,15 @@ if __name__ == '__main__':
             # We don't need the API for this, just construct URL
             url = opt.server.replace('/api/', '/wcs_file/%i' % opt.solved_id)
             retrieveurls.append((url, opt.wcs))
-        if opt.corr:
-            url = opt.server.replace('/api/', '/corr_file/%i' % opt.solved_id)
-            retrieveurls.append((url, opt.corr))
-        if opt.axy:
-            url = opt.server.replace('/api/', '/axy_file/%i' % opt.solved_id)
-            retrieveurls.append((url, opt.axy))
         if opt.kmz:
             url = opt.server.replace('/api/', '/kml_file/%i/' % opt.solved_id)
             retrieveurls.append((url, opt.kmz))
         if opt.newfits:
             url = opt.server.replace('/api/', '/new_fits_file/%i/' % opt.solved_id)
             retrieveurls.append((url, opt.newfits))
+        if opt.corr:
+            url = opt.server.replace('/api/', '/corr_file/%i' % opt.solved_id)
+            retrieveurls.append((url, opt.corr))
 
         for url,fn in retrieveurls:
             print('Retrieving file from', url, 'to', fn)
